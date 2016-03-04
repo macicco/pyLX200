@@ -12,7 +12,7 @@ def threaded(fn):
 
 class axis:
 	def __init__(self,a,v):
-		self.timestep=0.001
+		self.timestep=0.01
 		self.pointError=0.001
 		self.acceleration=a
 		self.a=a
@@ -53,7 +53,6 @@ class axis:
 
 	@threaded
 	def run(self):
-		#print datetime.datetime.now()
 		while not self.kill:
 			time.sleep(self.timestep)
 			if self.tracking:
@@ -63,23 +62,21 @@ class axis:
 		return
 
 	def tracktick(self):
-
-		sign=math.copysign(1,self.vtracking)
+		self.vdelta=self.vtracking-self.v
+		sign=math.copysign(1,self.vdelta)
 		self.beta_slope=(self.v*self.v)/(2*self.acceleration) 
 		self.t_slope=self.v/self.acceleration  
 		self.a=self.acceleration*sign
 		self.v=self.v+self.a*self.timestep
 
 	   	#check if already at max speed
-		if abs(self.v)>=abs(self.vtracking):
-			v_sign=math.copysign(1,self.v)
-			if sign==v_sign:
-				self.v=self.vtracking
-				self.a=0
+		if abs(self.v-self.vtracking) <=0.01:
+			self.v=self.vtracking
+			self.a=0
 
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
-		print self.beta,self.v,self.a,steps*1000
+		#print self.beta,self.v,self.a,steps
 
 	def slewtick(self):
 		self.delta=self.beta_target-self.beta
@@ -110,21 +107,62 @@ class axis:
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
 
-		print self.beta,self.v,self.a,steps*1000
+		#print self.beta,self.v,self.a,steps
 
 class mount:
 	def __init__(self,a,v):
-		RA_axis=axis(a,v)
-		DEC_axis=axis(a,v)						
+		self.axis1=axis(a,v)
+		self.axis2=axis(a,v)	
+
+	def run(self):					
+		self.axis1.run()
+		self.axis2.run()
+
+	def slew(self,x,y):
+		self.axis1.slew(x)
+		self.axis2.slew(y)
+
+	def track(self,vx,vy):
+		self.axis1.slew(vx)
+		self.axis2.slew(vy)
+
+	def compose(self,x,y):
+		deltax=x-self.axis1.beta
+		deltay=y-self.axis2.beta
+		angle=math.atan2(y, x)
+		print deltax,deltay,angle
+
+	def coords(self):
+		print self.axis1.beta,self.axis2.beta,self.axis1.v,self.axis2.v,self.axis1.a,self.axis2.a
+
+	def kill(self):
+		self.axis1.kill=True
+		self.axis2.kill=True
 
 if __name__ == '__main__':
+	m=mount(1,1)
+	m.run()
+	m.slew(0.5,0.1)
+	t=0
+	while t<4:
+		t=t+m.axis1.timestep*2
+		time.sleep(m.axis1.timestep*2)
+		m.coords()
+	m.kill()
+	exit(0)
+
 	RA_axis=axis(1.,1.)
 	RA_axis.run()
-
-	RA_axis.track(-0.3)
-	time.sleep(2)
+	for i,v in enumerate(xrange(0,600)):
+		x=math.sin(float(v)/100.)
+		RA_axis.track(x)
+		time.sleep(RA_axis.timestep*2)
+		#print RA_axis.beta,RA_axis.v,RA_axis.a,x
+	RA_axis.kill=True
 
 	'''
+	RA_axis.track(-0.3)
+	time.sleep(2)
 	RA_axis.slew(1.4)
 	time.sleep(4)
 	RA_axis.slew(-1.3)
@@ -135,13 +173,14 @@ if __name__ == '__main__':
 	time.sleep(3)
 	RA_axis.slew(-1.2)
 	time.sleep(3)
-	'''
-
 	RA_axis.track(0.3)
 	time.sleep(2)
 	RA_axis.track(0.4)
 	time.sleep(2)
 	RA_axis.track(0.5)
 	time.sleep(2)
+	RA_axis.track(0.)
+	time.sleep(2)
+	'''
 
-	RA_axis.kill=True
+
