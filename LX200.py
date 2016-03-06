@@ -8,10 +8,11 @@ https://github.com/peterjc/longsight/blob/master/telescope_server.py
 
 import socket
 import sys
-
+import select
 from thread import *
 
 import LX200CMD
+
  
 HOST = ''   # Symbolic name meaning all available interfaces
 PORT = 6666 # Arbitrary non-privileged port
@@ -44,50 +45,49 @@ def recv_end(the_socket):
             data=the_socket.recv(1)
 	    if data=='':
 		continue
-	    print repr(data)
+	    #print repr(data)
             if End in data:
-		print "end found"
+		#print "end found"
                 total_data.append(data[:data.find(End)])
                 break
 	    else:
             	total_data.append(data)
 
-    return ''.join(total_data)
+    return ''.join(total_data).replace('\n','').replace('\r','')
 
 #Functihttps://github.com/peterjc/longsight/blob/master/telescope_server.pyon for handling connections. This will be used to create threads
 def clientthread(conn):
     RUN=True
+    data=''
     #Sending message to connected client
     #conn.send('LX200 mount controler:OK\n') #send only takes string
      
     #infinite loop so that function do not terminate and thread do not end.
     while RUN:
-	try:
-	        #Receiving from client
-		while True:
-		        data += conn.recv(16)
-			if not data:
-		                break
-			while data:
-				while data[0:1] == "#"
-					data=data[1:]
-				if not data:
-					break
-				if "#" in data:
-					cmd=data[:data.index("#")]
-					break
-		#data=recv_end(conn)
+    	try:
+        	ready_to_read, ready_to_write, in_error = \
+        	    select.select([conn,], [conn,], [], 5)
+    	except select.error:
+         	# connection error event here, maybe reconnect
+        	print 'connection error'
+        	break
+
+    	if len(ready_to_read) > 0:
+		cmd=recv_end(conn)
 		print "<-",cmd
 		reply=conductor.cmd(cmd)
 		print "->",reply
-    		conn.sendall(str(reply)+'\n')
-	except:
-		print "exit...."
-		RUN=False
+    		conn.send(str(reply)+'\n')
 
-     
+    	if not len(ready_to_write) :
+        	print 'connection closed'
+        	break
+
+
     #came out of loop
+    conn.shutdown(2)    # 0 = done receiving, 1 = done sending, 2 = both
     conn.close()
+    print "Disconnecting.."
  
 #now keep talking with the client
 RUN=True

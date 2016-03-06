@@ -1,9 +1,13 @@
 #!/usr/bin/python
+# -*- coding: iso-8859-15 -*-
 '''
 LX200 command set
 '''
+import ephem
 import time,datetime
 import threading
+import ramps
+import math
 
 def threaded(fn):
     def wrapper(*args, **kwargs):
@@ -17,6 +21,7 @@ class lx200conductor():
 		":info": self.cmd_info,  \
   		":FirmWareDate": self.cmd_firware_date,  \
   		":GVF": self.cmd_firware_ver,  \
+  		":V": self.cmd_firware_ver,  \
   		":GVD": self.cmd_firware_date,  \
   		":GC": self.cmd_getLocalDate,  \
   		":GL": self.cmd_getLocalTime,  \
@@ -26,6 +31,11 @@ class lx200conductor():
   		":Gd": self.cmd_getTargetDEC,  \
   		":GR": self.cmd_getTelescopeRA,  \
   		":GD": self.cmd_getTelescopeDEC,  \
+  		":RS": self.cmd_setMaxSlewRate,  \
+  		":Me": self.cmd_pulseE,  \
+  		":Mw": self.cmd_pulseW,  \
+  		":Mn": self.cmd_pulseN,  \
+  		":Ms": self.cmd_pulseS,  \
   		":CM": self.cmd_dummy
 		}
 		self.targetRA=0		
@@ -33,30 +43,37 @@ class lx200conductor():
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
+		self.pulseStep=ephem.degrees('00:01:00')
+		self.m=ramps.mount(ephem.degrees('20:00:00'),ephem.degrees('01:00:00'))
 		self.run()	
 
     	def end(self):
         	print "conductor ending.."
 		self.RUN=False
+		self.m.end()
 
+		
 	@threaded
 	def run(self):
 		print "Starting motors."
 	  	while self.RUN:
-			self.RA=self.RA+0.1	
-			self.DEC=self.DEC+1
-			#print self.RA,self.DEC
-			time.sleep(1)
+			self.m.slew(self.targetRA,self.targetDEC)
+			time.sleep(0.25)
+			#self.m.coords()
+			self.DEC=ephem.degrees(self.m.axis2.beta)
+			self.RA=ephem.hours(self.m.axis1.beta)
+		self.end()
 		print "MOTORS STOPPED"
 
 
-	def cmd(self,cmd):
 
+	def cmd(self,cmd):
+		print cmd
                 for c in self.CMDs.keys():
 			l=len(c)
 			if (cmd[:l]==c):
-				arg=cmd[l:]
-				print "K",c,"KK",cmd,"KKK",arg
+				arg=cmd[l:].strip()
+				#print "K",c,"KK",cmd,"KKK",arg
 				return self.CMDs[c](arg)
 				break
 
@@ -65,22 +82,22 @@ class lx200conductor():
 
 
 	def cmd_dummy(self,arg):
-		return arg,"NOT IMPLEMENTED"
+		return arg,"#"
 
 	def cmd_info(self,arg):
-		return "pyLX200 driver"
+		return "pyLX200 driver#"
 
 	def cmd_firware_date(self,arg):
-		return "01/02/2016"
+		return "01/02/2016#"
 
 	def cmd_firware_ver(self,arg):
-		return "LX200 Master. Python mount controler. Ver 0.1"
+		return "LX200 Master. Python mount controler. Ver 0.1#"
 
 	def cmd_getLocalDate(self,arg):
-		return time.strftime("%m/%d/%y")
+		return time.strftime("%m/%d/%y")+'#'
 	
 	def cmd_getLocalTime(self,arg):
-		return time.strftime("%H:%M:%S")
+		return time.strftime("%H:%M:%S")+'#'
 
 	def cmd_getTargetRA(self,arg):
 		return self.targetRA
@@ -89,16 +106,43 @@ class lx200conductor():
 		return self.targetDEC
 
 	def cmd_setTargetRA(self,arg):
-		return 
-
+		self.targetRA=ephem.hours(arg)
+		#return self.targetRA
+		
 	def cmd_setTargetDEC(self,arg):
-		return 
+		self.targetDEC=ephem.degrees(arg)
+		#return self.targetDEC
 
 	def cmd_getTelescopeRA(self,arg):
-		return self.RA
+		data=str(self.RA)
+		d=data[:data.index(".")]
+		return d+'#'
 
 	def cmd_getTelescopeDEC(self,arg):
-		return self.DEC
+		data=str(self.DEC)
+		D,M,S=data.split(':')
+		D=int(D)
+		M=int(M)
+		S=round(float(S))
+		#print D,M,S 
+		d="%+02d*%02d’%02d"  % (D,M,S)
+		d="%+02d*%02d"  % (D,M)
+		return d+'#'
+
+    	def cmd_pulseE(self,arg):
+		self.targetRA=self.targetRA+self.pulseStep
+
+    	def cmd_pulseW(self,arg):
+		self.targetRA=self.targetRA-self.pulseStep
+
+    	def cmd_pulseN(self,arg):
+		self.targetDEC=self.targetDEC+self.pulseStep
+
+    	def cmd_pulseS(self,arg):
+		self.targetDEC=self.targetDEC-self.pulseStep
+
+	def cmd_setMaxSlewRate(self,arg):
+		return
 
 if __name__ == '__main__':
 	c=lx200conductor()

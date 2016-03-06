@@ -3,7 +3,7 @@
 import math
 import time,datetime
 import threading
-
+import ephem
 
 def threaded(fn):
     def wrapper(*args, **kwargs):
@@ -12,8 +12,9 @@ def threaded(fn):
 
 class axis:
 	def __init__(self,a,v):
-		self.timestep=0.01
-		self.pointError=0.001
+
+		self.pointError=ephem.degrees('00:00:01')
+		self.timestep=0.0001
 		self.acceleration=a
 		self.a=a
 		self.vmax=v
@@ -112,7 +113,10 @@ class axis:
 class mount:
 	def __init__(self,a,v):
 		self.axis1=axis(a,v)
-		self.axis2=axis(a,v)	
+		self.axis2=axis(a,v)
+		self.RUN=True
+		self.run()
+
 
 	def run(self):					
 		self.axis1.run()
@@ -123,8 +127,8 @@ class mount:
 		self.axis2.slew(y)
 
 	def track(self,vx,vy):
-		self.axis1.slew(vx)
-		self.axis2.slew(vy)
+		self.axis1.track(vx)
+		self.axis2.track(vy)
 
 	def compose(self,x,y):
 		deltax=x-self.axis1.beta
@@ -135,20 +139,20 @@ class mount:
 	def coords(self):
 		print self.axis1.beta,self.axis2.beta,self.axis1.v,self.axis2.v,self.axis1.a,self.axis2.a
 
-	def kill(self):
+	def end(self):
 		self.axis1.kill=True
 		self.axis2.kill=True
+		self.RUN=False
 
 if __name__ == '__main__':
 	m=mount(1,1)
-	m.run()
 	m.slew(0.5,0.1)
 	t=0
 	while t<4:
 		t=t+m.axis1.timestep*2
 		time.sleep(m.axis1.timestep*2)
 		m.coords()
-	m.kill()
+	m.end()
 	exit(0)
 
 	RA_axis=axis(1.,1.)
