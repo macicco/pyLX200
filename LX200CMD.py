@@ -43,8 +43,10 @@ class lx200conductor():
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
-		self.pulseStep=ephem.degrees('00:01:00')
-		self.m=ramps.mount(ephem.degrees('20:00:00'),ephem.degrees('01:00:00'))
+		self.pulseStep=ephem.degrees('00:00:01')
+		v=ephem.degrees('5:00:00')
+		a=ephem.degrees('01:00:00')
+		self.m=ramps.mount(a,v)
 		self.run()	
 
     	def end(self):
@@ -60,6 +62,7 @@ class lx200conductor():
 			self.m.slew(self.targetRA,self.targetDEC)
 			time.sleep(0.25)
 			#self.m.coords()
+			print "--->",self.DEC,self.targetDEC,ephem.degrees(self.m.axis2.beta),self.m.axis2.beta_target,(ephem.degrees(self.targetDEC))
 			self.DEC=ephem.degrees(self.m.axis2.beta)
 			self.RA=ephem.hours(self.m.axis1.beta)
 		self.end()
@@ -110,7 +113,10 @@ class lx200conductor():
 		#return self.targetRA
 		
 	def cmd_setTargetDEC(self,arg):
+		arg=arg.replace('*',':')
+		arg=arg.replace('’',':')
 		self.targetDEC=ephem.degrees(arg)
+		print arg,self.targetDEC
 		#return self.targetDEC
 
 	def cmd_getTelescopeRA(self,arg):
@@ -125,8 +131,8 @@ class lx200conductor():
 		M=int(M)
 		S=round(float(S))
 		#print D,M,S 
-		d="%+02d*%02d’%02d"  % (D,M,S)
-		d="%+02d*%02d"  % (D,M)
+		d="%+02d*%02d:%02d"  % (D,M,S)
+		#d="%+02d*%02d"  % (D,M)
 		return d+'#'
 
     	def cmd_pulseE(self,arg):

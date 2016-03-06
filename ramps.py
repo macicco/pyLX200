@@ -14,7 +14,7 @@ class axis:
 	def __init__(self,a,v):
 
 		self.pointError=ephem.degrees('00:00:01')
-		self.timestep=0.0001
+		self.timestep=0.0005
 		self.acceleration=a
 		self.a=a
 		self.vmax=v
@@ -114,7 +114,6 @@ class mount:
 	def __init__(self,a,v):
 		self.axis1=axis(a,v)
 		self.axis2=axis(a,v)
-		self.RUN=True
 		self.run()
 
 
@@ -142,13 +141,16 @@ class mount:
 	def end(self):
 		self.axis1.kill=True
 		self.axis2.kill=True
-		self.RUN=False
+
 
 if __name__ == '__main__':
-	m=mount(1,1)
-	m.slew(0.5,0.1)
+	#m=mount(1,1)
+	a=ephem.degrees('01:00:00')
+	v=ephem.degrees('05:00:00')
+	m=mount(a,v)
+	m.slew(0.5,0.5)
 	t=0
-	while t<4:
+	while t<15:
 		t=t+m.axis1.timestep*2
 		time.sleep(m.axis1.timestep*2)
 		m.coords()
