@@ -37,25 +37,31 @@ print 'Socket now listening'
 #Start LX200 master
 conductor=LX200CMD.lx200conductor()
 
+
 #End='something useable as an end marker'
 def recv_end(the_socket):
     End='#'
-    total_data=[];data=''
+    total_data=[]
+    data=''
     while True:
             data=the_socket.recv(1)
 	    if data=='':
 		continue
-	    #print repr(data)
+	
             if End in data:
-		#print "end found"
                 total_data.append(data[:data.find(End)])
-                break
+		cmd=''.join(total_data).replace('\n','').replace('\r','')
+		if len(cmd)==0:
+			continue
+		else:
+			break
 	    else:
             	total_data.append(data)
 
-    return ''.join(total_data).replace('\n','').replace('\r','')
+    print "CMD parse:",cmd
+    return cmd
 
-#Functihttps://github.com/peterjc/longsight/blob/master/telescope_server.pyon for handling connections. This will be used to create threads
+#Function for handling connections. This will be used to create threads
 def clientthread(conn):
     RUN=True
     data=''
@@ -72,14 +78,15 @@ def clientthread(conn):
         	print 'connection error'
         	break
 
-    	if len(ready_to_read) > 0:
-		cmd=recv_end(conn)
+    	#if len(ready_to_read) > 0:
+	if True:
+	    	cmd=recv_end(conn)
 		print "<-",cmd
 		reply=conductor.cmd(cmd)
 		print "->",reply
     		conn.send(str(reply)+'\n')
 
-    	if not len(ready_to_write) :
+    	if len(ready_to_write) <= 0 :
         	print 'connection closed'
         	break
 

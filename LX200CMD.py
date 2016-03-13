@@ -17,7 +17,8 @@ def threaded(fn):
 class lx200conductor():
 	def __init__(self):
 		print "Conductor create"
-		self.CMDs={ \
+		self.CMDs={ 
+		chr(6):self.cmd_ack,  \
 		":info": self.cmd_info,  \
   		":FirmWareDate": self.cmd_firware_date,  \
   		":GVF": self.cmd_firware_ver,  \
@@ -25,8 +26,11 @@ class lx200conductor():
   		":GVD": self.cmd_firware_date,  \
   		":GC": self.cmd_getLocalDate,  \
   		":GL": self.cmd_getLocalTime,  \
+  		":GS": self.cmd_getSideralTime,  \
   		":Sr": self.cmd_setTargetRA,  \
   		":Sd": self.cmd_setTargetDEC,  \
+  		":MS": self.cmd_slew,  \
+  		":Q":  self.cmd_stopSlew,  \
   		":Gr": self.cmd_getTargetRA,  \
   		":Gd": self.cmd_getTargetDEC,  \
   		":GR": self.cmd_getTelescopeRA,  \
@@ -43,11 +47,23 @@ class lx200conductor():
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
+		self.slewing=False
+		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
 		v=ephem.degrees('5:00:00')
 		a=ephem.degrees('01:00:00')
 		self.m=ramps.mount(a,v)
 		self.run()	
+
+	def setObserver(self):
+		here = ephem.Observer()
+		here.lat="00:00:00"
+		here.lon="00:00:00"
+		here.horizon="00:00:00"
+		here.elev = 700
+		here.temp = 25e0
+		here.compute_pressure()
+		self.observer=here
 
     	def end(self):
         	print "conductor ending.."
@@ -59,16 +75,25 @@ class lx200conductor():
 	def run(self):
 		print "Starting motors."
 	  	while self.RUN:
-			self.m.slew(self.targetRA,self.targetDEC)
+			sideral=self.observer.sidereal_time()
+			nowRA=self.targetRA-sideral
+			if self.slewing:
+				self.m.slew(nowRA,self.targetDEC)
 			time.sleep(0.25)
 			#self.m.coords()
-			print "--->",self.DEC,self.targetDEC,ephem.degrees(self.m.axis2.beta),self.m.axis2.beta_target,(ephem.degrees(self.targetDEC))
+			#print "--->",self.DEC,self.targetDEC,ephem.degrees(self.m.axis2.beta),self.m.axis2.beta_target,(ephem.degrees(self.targetDEC))
+			self.RA=self.ra(self.m.axis1.beta)
+			print self.RA
 			self.DEC=ephem.degrees(self.m.axis2.beta)
-			self.RA=ephem.hours(self.m.axis1.beta)
 		self.end()
 		print "MOTORS STOPPED"
 
-
+	def ra(self,RA):
+		h=ephem.hours(RA)
+		if h<0:
+			return ephem.hours(24)+h
+		else:
+			return h
 
 	def cmd(self,cmd):
 		print cmd
@@ -87,6 +112,9 @@ class lx200conductor():
 	def cmd_dummy(self,arg):
 		return arg,"#"
 
+	def cmd_ack(self,arg):
+		return "P"
+
 	def cmd_info(self,arg):
 		return "pyLX200 driver#"
 
@@ -102,6 +130,10 @@ class lx200conductor():
 	def cmd_getLocalTime(self,arg):
 		return time.strftime("%H:%M:%S")+'#'
 
+	def cmd_getSideralTime(self,arg):
+		sideralTime=self.observer.sidereal_time()
+		return str(sideralTime)+'#'
+
 	def cmd_getTargetRA(self,arg):
 		return self.targetRA
 
@@ -110,18 +142,32 @@ class lx200conductor():
 
 	def cmd_setTargetRA(self,arg):
 		self.targetRA=ephem.hours(arg)
-		#return self.targetRA
+		return 1
+
+	def cmd_slew(self,arg):
+		self.slewing=True
+		return 0
+
+	def cmd_stopSlew(self,arg):
+		self.slewing=False
+		self.m.slew(self.RA,self.DEC)
+		return 
 		
 	def cmd_setTargetDEC(self,arg):
 		arg=arg.replace('*',':')
 		arg=arg.replace('’',':')
 		self.targetDEC=ephem.degrees(arg)
 		print arg,self.targetDEC
-		#return self.targetDEC
+		return 1
 
 	def cmd_getTelescopeRA(self,arg):
 		data=str(self.RA)
-		d=data[:data.index(".")]
+		H,M,S=data.split(':')
+		H=int(H)
+		M=int(M)
+		S=round(float(S))
+		#d=data[:data.index(".")]
+		d="%02d:%02d:%02d"  % (H,M,S)
 		return d+'#'
 
 	def cmd_getTelescopeDEC(self,arg):
@@ -131,8 +177,8 @@ class lx200conductor():
 		M=int(M)
 		S=round(float(S))
 		#print D,M,S 
-		d="%+02d*%02d:%02d"  % (D,M,S)
-		#d="%+02d*%02d"  % (D,M)
+		d="%+03d*%02d:%02d"  % (D,M,S)
+		#d="%+03d*%02d"  % (D,M)
 		return d+'#'
 
     	def cmd_pulseE(self,arg):
