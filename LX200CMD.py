@@ -50,15 +50,16 @@ class lx200conductor():
 		self.slewing=False
 		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
-		v=ephem.degrees('5:00:00')
+		v=ephem.degrees('10:00:00')
 		a=ephem.degrees('01:00:00')
 		self.m=ramps.mount(a,v)
 		self.run()	
 
 	def setObserver(self):
 		here = ephem.Observer()
-		here.lat="00:00:00"
-		here.lon="00:00:00"
+		here.lat="40.440154"
+		here.lon="-3.668747"
+		print "COORD:", here.lat,here.lon
 		here.horizon="00:00:00"
 		here.elev = 700
 		here.temp = 25e0
@@ -75,27 +76,15 @@ class lx200conductor():
 	def run(self):
 		print "Starting motors."
 	  	while self.RUN:
+			time.sleep(0.25)
 			self.observer.date=ephem.now()
 			sideral=self.observer.sidereal_time()
-			nowRA=ephem.hours(self.targetRA-sideral).norm
-			if nowRA==ephem.hours("24:00:00"):
-				nowRA=ephem.hours("00:00:00")
-			if self.slewing:
-				#print "Slew:",self.targetRA,self.targetDEC
-				self.m.slew(nowRA,self.targetDEC)
-			if False:
-				vRA=ephem.hours("00:00:01")
-				vDEC=ephem.degrees("00:00:15")
-				#print "Track:",vRA
-				self.m.axis1.track(vRA)
-				self.m.axis2.track(vDEC)
-			time.sleep(0.25)
-			ra=ephem.hours(self.m.axis1.beta).norm
+			ra=ephem.hours(sideral-self.m.axis1.beta).norm
 			if ra==ephem.hours("24:00:00"):
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
-			self.DEC=ephem.degrees(self.m.axis2.beta).znorm
-
+			self.DEC=ephem.degrees(self.m.axis2.beta)
+			#print self.RA,self.DEC
 
 		self.end()
 		print "MOTORS STOPPED"
@@ -151,21 +140,38 @@ class lx200conductor():
 		self.targetRA=ephem.hours(arg)
 		return 1
 
-	def cmd_slew(self,arg):
-		self.slewing=True
-		return 0
-
-	def cmd_stopSlew(self,arg):
-		self.slewing=False
-		self.m.slew(self.RA,self.DEC)
-		return 
-		
 	def cmd_setTargetDEC(self,arg):
 		arg=arg.replace('*',':')
 		arg=arg.replace('’',':')
 		self.targetDEC=ephem.degrees(arg)
 		print arg,self.targetDEC
 		return 1
+
+	def cmd_slew(self,arg):
+		self.slewing=True
+		self.observer.date=ephem.now()
+		sideral=self.observer.sidereal_time()
+		ra=ephem.hours(sideral-self.targetRA).znorm
+
+		if ra==ephem.hours("24:00:00"):
+			ra=ephem.hours("00:00:00")
+			
+		print "slewing to:",ra,self.targetDEC
+		self.m.slew(ra,self.targetDEC)
+		return 0
+
+	def cmd_stopSlew(self,arg):
+		self.m.stopSlew()
+		return 
+
+	def track(self,arg):
+		vRA=ephem.hours("00:00:01")
+		vDEC=ephem.degrees("00:00:15")
+		self.m.axis1.track(vRA)
+		self.m.axis2.track(vDEC)
+		return
+		
+
 
 	def cmd_getTelescopeRA(self,arg):
 		data=str(self.RA)

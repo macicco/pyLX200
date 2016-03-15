@@ -13,7 +13,7 @@ def threaded(fn):
 class axis:
 	def __init__(self,a,v):
 		self.pointError=ephem.degrees('00:00:01')
-		self.timestep=0.010
+		self.timestep=0.0005
 		self.acceleration=a
 		self.a=a
 		self.vmax=v
@@ -49,7 +49,9 @@ class axis:
 		self.tracking=True
 		self.vtracking=v
 
-
+	def sync(self,b):
+		self.beta=b
+		self.vtracking=v
 
 	@threaded
 	def run(self):
@@ -123,6 +125,14 @@ class mount:
 	def slew(self,x,y):
 		self.axis1.slew(x)
 		self.axis2.slew(y)
+
+	def sync(self,x,y):
+		self.axis1.sync(x)
+		self.axis2.sync(y)
+
+	def stopSlew(self):
+		self.axis1.slew(self.axis1.beta)
+		self.axis2.slew(self.axis2.beta)
 
 	def track(self,vx,vy):
 		self.axis1.track(vx)
