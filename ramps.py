@@ -12,9 +12,8 @@ def threaded(fn):
 
 class axis:
 	def __init__(self,a,v):
-
 		self.pointError=ephem.degrees('00:00:01')
-		self.timestep=0.0005
+		self.timestep=0.010
 		self.acceleration=a
 		self.a=a
 		self.vmax=v

@@ -75,25 +75,32 @@ class lx200conductor():
 	def run(self):
 		print "Starting motors."
 	  	while self.RUN:
+			self.observer.date=ephem.now()
 			sideral=self.observer.sidereal_time()
-			nowRA=self.targetRA-sideral
+			nowRA=ephem.hours(self.targetRA-sideral).norm
+			if nowRA==ephem.hours("24:00:00"):
+				nowRA=ephem.hours("00:00:00")
 			if self.slewing:
+				#print "Slew:",self.targetRA,self.targetDEC
 				self.m.slew(nowRA,self.targetDEC)
+			if False:
+				vRA=ephem.hours("00:00:01")
+				vDEC=ephem.degrees("00:00:15")
+				#print "Track:",vRA
+				self.m.axis1.track(vRA)
+				self.m.axis2.track(vDEC)
 			time.sleep(0.25)
-			#self.m.coords()
-			#print "--->",self.DEC,self.targetDEC,ephem.degrees(self.m.axis2.beta),self.m.axis2.beta_target,(ephem.degrees(self.targetDEC))
-			self.RA=self.ra(self.m.axis1.beta)
-			print self.RA
-			self.DEC=ephem.degrees(self.m.axis2.beta)
+			ra=ephem.hours(self.m.axis1.beta).norm
+			if ra==ephem.hours("24:00:00"):
+				ra=ephem.hours("00:00:00")
+			self.RA=ra
+			self.DEC=ephem.degrees(self.m.axis2.beta).znorm
+
+
 		self.end()
 		print "MOTORS STOPPED"
 
-	def ra(self,RA):
-		h=ephem.hours(RA)
-		if h<0:
-			return ephem.hours(24)+h
-		else:
-			return h
+
 
 	def cmd(self,cmd):
 		print cmd
