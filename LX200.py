@@ -58,7 +58,7 @@ def recv_end(the_socket):
 	    else:
             	total_data.append(data)
 
-    print "CMD parse:",cmd
+    print "CMD parse:",repr(cmd)
     return cmd
 
 #Function for handling connections. This will be used to create threads
@@ -84,7 +84,7 @@ def clientthread(conn):
 		print "<-",cmd
 		reply=conductor.cmd(cmd)
 		print "->",reply
-    		conn.send(str(reply)+'\n')
+    		conn.send(str(reply))
 
     	if len(ready_to_write) <= 0 :
         	print 'connection closed'

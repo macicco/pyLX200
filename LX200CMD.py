@@ -36,6 +36,7 @@ class lx200conductor():
   		":GR": self.cmd_getTelescopeRA,  \
   		":GD": self.cmd_getTelescopeDEC,  \
   		":RS": self.cmd_setMaxSlewRate,  \
+  		":RM": self.cmd_slewRate,  \
   		":Me": self.cmd_pulseE,  \
   		":Mw": self.cmd_pulseW,  \
   		":Mn": self.cmd_pulseN,  \
@@ -77,7 +78,7 @@ class lx200conductor():
 	def run(self):
 		print "Starting motors."
 	  	while self.RUN:
-			time.sleep(0.25)
+			time.sleep(0.1)
 			self.observer.date=ephem.now()
 			sideral=self.observer.sidereal_time()
 			ra=ephem.hours(sideral-self.m.axis1.beta).norm
@@ -112,7 +113,10 @@ class lx200conductor():
 
 
 	def cmd_dummy(self,arg):
-		return arg,"#"
+		print "DUMMY CMD:",arg
+		return 
+
+
 
 	def cmd_ack(self,arg):
 		return "P"
@@ -137,10 +141,10 @@ class lx200conductor():
 		return str(sideralTime)+'#'
 
 	def cmd_getTargetRA(self,arg):
-		return self.targetRA
+		return str(self.targetRA)+'#'
 
 	def cmd_getTargetDEC(self,arg):
-		return self.targetDEC
+		return str(self.targetDEC)+'#'
 
 	def cmd_setTargetRA(self,arg):
 		self.targetRA=ephem.hours(arg)
@@ -148,10 +152,10 @@ class lx200conductor():
 
 	def cmd_setTargetDEC(self,arg):
 		arg=arg.replace('*',':')
+		arg=arg.replace(chr(223),':')
 		arg=arg.replace('’',':')
 		self.targetDEC=ephem.degrees(arg)
-		print arg,self.targetDEC
-		return 1
+		return "1"
 
 	def cmd_align2target(self,arg):
 		ra=self.hourAngle(self.targetRA)
@@ -162,7 +166,8 @@ class lx200conductor():
 		ra=self.hourAngle(self.targetRA)	
 		print "slewing to:",ra,self.targetDEC
 		self.m.slew(ra,self.targetDEC)
-		return 0
+		#return values 0==OK, 1 == below Horizon
+		return "0#"
 
 	def hourAngle(self,ra):
 		self.observer.date=ephem.now()
@@ -174,7 +179,7 @@ class lx200conductor():
 
 	def cmd_stopSlew(self,arg):
 		self.m.stopSlew()
-		return 
+		return 1
 
 	def track(self):
 		vRA=ephem.hours("00:00:01")
@@ -203,23 +208,31 @@ class lx200conductor():
 		S=round(float(S))
 		#print D,M,S 
 		d="%+03d*%02d:%02d"  % (D,M,S)
+		d=d.replace('*',chr(223))
 		#d="%+03d*%02d"  % (D,M)
 		return d+'#'
 
     	def cmd_pulseE(self,arg):
 		self.targetRA=self.targetRA+self.pulseStep
+		self.cmd_slew('')
 
     	def cmd_pulseW(self,arg):
 		self.targetRA=self.targetRA-self.pulseStep
+		self.cmd_slew('')
 
     	def cmd_pulseN(self,arg):
 		self.targetDEC=self.targetDEC+self.pulseStep
+		self.cmd_slew('')
 
     	def cmd_pulseS(self,arg):
 		self.targetDEC=self.targetDEC-self.pulseStep
+		self.cmd_slew('')
 
 	def cmd_setMaxSlewRate(self,arg):
-		return
+		return 1
+
+	def cmd_slewRate(self,arg):
+		return 1
 
 if __name__ == '__main__':
 	c=lx200conductor()

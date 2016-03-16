@@ -42,7 +42,7 @@ class axis:
 		self.beta_target=beta
 		if not blocking:
 			return
-	        while not RA_axis.end:
+	        while not self.end:
 			time.sleep(1)
 
 	def track(self,v):
