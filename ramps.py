@@ -50,8 +50,9 @@ class axis:
 		self.vtracking=v
 
 	def sync(self,b):
+		self.beta_target=b
 		self.beta=b
-		self.vtracking=v
+
 
 	@threaded
 	def run(self):

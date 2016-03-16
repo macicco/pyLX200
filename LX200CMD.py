@@ -40,10 +40,11 @@ class lx200conductor():
   		":Mw": self.cmd_pulseW,  \
   		":Mn": self.cmd_pulseN,  \
   		":Ms": self.cmd_pulseS,  \
-  		":CM": self.cmd_dummy
+  		":CM": self.cmd_align2target
 		}
 		self.targetRA=0		
-		self.targetDEC=0	
+		self.targetDEC=0
+		self.pointError=ephem.degrees('00:00:10')	
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
@@ -84,6 +85,11 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
+			if abs(self.RA-self.targetRA)<=self.pointError and abs(self.DEC-self.targetDEC)<=self.pointError:
+				print "TRAK"
+				self.slewing=False
+				#self.track()
+
 			#print self.RA,self.DEC
 
 		self.end()
@@ -147,24 +153,30 @@ class lx200conductor():
 		print arg,self.targetDEC
 		return 1
 
-	def cmd_slew(self,arg):
-		self.slewing=True
-		self.observer.date=ephem.now()
-		sideral=self.observer.sidereal_time()
-		ra=ephem.hours(sideral-self.targetRA).znorm
+	def cmd_align2target(self,arg):
+		ra=self.hourAngle(self.targetRA)
+		self.m.sync(ra,self.targetDEC)
+		return "target#"
 
-		if ra==ephem.hours("24:00:00"):
-			ra=ephem.hours("00:00:00")
-			
+	def cmd_slew(self,arg):
+		ra=self.hourAngle(self.targetRA)	
 		print "slewing to:",ra,self.targetDEC
 		self.m.slew(ra,self.targetDEC)
 		return 0
+
+	def hourAngle(self,ra):
+		self.observer.date=ephem.now()
+		sideral=self.observer.sidereal_time()
+		ra=ephem.hours(sideral-ra).znorm
+		if ra==ephem.hours("24:00:00"):
+			ra=ephem.hours("00:00:00")
+		return ra		
 
 	def cmd_stopSlew(self,arg):
 		self.m.stopSlew()
 		return 
 
-	def track(self,arg):
+	def track(self):
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:15")
 		self.m.axis1.track(vRA)
