@@ -31,7 +31,7 @@ except socket.error as msg:
 print 'Socket bind complete'
  
 #Start listening on socket
-s.listen(10)
+s.listen(1)
 print 'Socket now listening'
  
 #Start LX200 master
@@ -78,8 +78,7 @@ def clientthread(conn):
         	print 'connection error'
         	break
 
-    	#if len(ready_to_read) > 0:
-	if True:
+    	if len(ready_to_read) > 0:
 	    	cmd=recv_end(conn)
 		print "<-",cmd
 		reply=conductor.cmd(cmd)

@@ -89,7 +89,7 @@ class lx200conductor():
 			if abs(self.RA-self.targetRA)<=self.pointError and abs(self.DEC-self.targetDEC)<=self.pointError:
 				print "TRAK"
 				self.slewing=False
-				#self.track()
+				self.track()
 
 			#print self.RA,self.DEC
 
@@ -155,7 +155,7 @@ class lx200conductor():
 		arg=arg.replace(chr(223),':')
 		arg=arg.replace('’',':')
 		self.targetDEC=ephem.degrees(arg)
-		return "1"
+		return 1
 
 	def cmd_align2target(self,arg):
 		ra=self.hourAngle(self.targetRA)
@@ -183,7 +183,7 @@ class lx200conductor():
 
 	def track(self):
 		vRA=ephem.hours("00:00:01")
-		vDEC=ephem.degrees("00:00:15")
+		vDEC=ephem.degrees("00:00:00")
 		self.m.axis1.track(vRA)
 		self.m.axis2.track(vDEC)
 		return
