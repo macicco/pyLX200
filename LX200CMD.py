@@ -45,7 +45,7 @@ class lx200conductor():
 		}
 		self.targetRA=0		
 		self.targetDEC=0
-		self.pointError=ephem.degrees('00:00:10')	
+		self.pointError=ephem.degrees('00:00:01')	
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
@@ -54,7 +54,10 @@ class lx200conductor():
 		self.pulseStep=ephem.degrees('00:00:01')
 		v=ephem.degrees('10:00:00')
 		a=ephem.degrees('01:00:00')
-		self.m=ramps.mount(a,v)
+		self.m=ramps.mount(a,v,self.pointError)
+		vRA=ephem.hours("00:00:01")
+		vDEC=ephem.degrees("00:00:00")
+		self.m.trackSpeed(vRA,vDEC)
 		self.run()	
 
 	def setObserver(self):
@@ -87,9 +90,9 @@ class lx200conductor():
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
 			if abs(self.RA-self.targetRA)<=self.pointError and abs(self.DEC-self.targetDEC)<=self.pointError:
-				print "TRAK"
+				#print "TRAK"
 				self.slewing=False
-				self.track()
+				#self.track()
 
 			#print self.RA,self.DEC
 
@@ -183,9 +186,8 @@ class lx200conductor():
 
 	def track(self):
 		vRA=ephem.hours("00:00:01")
-		vDEC=ephem.degrees("00:00:00")
-		self.m.axis1.track(vRA)
-		self.m.axis2.track(vDEC)
+		vDEC=ephem.degrees("00:00:15")
+		self.m.track(vRA,vDEC)
 		return
 		
 
