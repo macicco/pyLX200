@@ -45,20 +45,20 @@ class lx200conductor():
 		}
 		self.targetRA=0		
 		self.targetDEC=0
-		self.pointError=ephem.degrees('00:00:01')	
+		self.pointError=ephem.degrees('00:00:10')	
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
 		self.slewing=False
 		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
-		v=ephem.degrees('10:00:00')
-		a=ephem.degrees('01:00:00')
+		v=ephem.degrees('55:00:00')
+		a=ephem.degrees('05:00:00')
 		self.m=ramps.mount(a,v,self.pointError)
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
-		self.run()	
+		#self.run()	
 
 	def setObserver(self):
 		here = ephem.Observer()
@@ -79,6 +79,8 @@ class lx200conductor():
 		
 	@threaded
 	def run(self):
+		#TEST. ONLY UPDATE IF NEED
+		return
 		print "Starting motors."
 	  	while self.RUN:
 			time.sleep(0.1)
@@ -89,10 +91,12 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
+			'''
 			if abs(self.RA-self.targetRA)<=self.pointError and abs(self.DEC-self.targetDEC)<=self.pointError:
 				#print "TRAK"
 				self.slewing=False
 				#self.track()
+			'''
 
 			#print self.RA,self.DEC
 
@@ -102,7 +106,6 @@ class lx200conductor():
 
 
 	def cmd(self,cmd):
-		print cmd
                 for c in self.CMDs.keys():
 			l=len(c)
 			if (cmd[:l]==c):
@@ -193,6 +196,13 @@ class lx200conductor():
 
 
 	def cmd_getTelescopeRA(self,arg):
+		if True:
+			self.observer.date=ephem.now()
+			sideral=self.observer.sidereal_time()
+			ra=ephem.hours(sideral-self.m.axis1.beta).norm
+			if ra==ephem.hours("24:00:00"):
+				ra=ephem.hours("00:00:00")
+			self.RA=ra
 		data=str(self.RA)
 		H,M,S=data.split(':')
 		H=int(H)
@@ -203,6 +213,7 @@ class lx200conductor():
 		return d+'#'
 
 	def cmd_getTelescopeDEC(self,arg):
+		self.DEC=ephem.degrees(self.m.axis2.beta)
 		data=str(self.DEC)
 		D,M,S=data.split(':')
 		D=int(D)

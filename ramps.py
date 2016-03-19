@@ -14,10 +14,10 @@ class axis:
 	def __init__(self,a,v,pointError):
 		self.pointError=float(pointError)
 		self.timesleep=0.0001
-		self.timestepMax=0.1
+		self.timestepMax=0.5
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
-		self.a=float(a)
+		self.a=0
 		self.vmax=float(v)
 		self.beta=0
 		self.v=0
@@ -40,8 +40,9 @@ class axis:
 
 
 	def slew(self,beta,blocking=False):
-		#print "SLEW START"
 		self.tracking=False
+		print "TRACKING END"
+		print "SLEW START"
 		self.slewend=False
 		self.beta_target=beta
 		#self.v=self.vtracking
@@ -51,6 +52,7 @@ class axis:
 			time.sleep(1)
 
 	def track(self,v):
+		print "TRACKING START"
 		self.tracking=True
 		self.vtracking=v
 
@@ -67,8 +69,8 @@ class axis:
 			time.sleep(self.timesleep)
 			now=time.time()
 			delta=now-self.T
-			if delta<self.timestep/3:
-				continue
+			#if delta<self.timestep/3:
+			#	continue
 			self.T=now
 			self.timestep=delta
 			#print delta
@@ -103,7 +105,6 @@ class axis:
 	def slewtick(self):
 		if self.slewend:
 			#This change to tracktick() in run()
-			self.track(self.vtracking)
 			#print "Change_to_track"
 			return
 		self.delta=self.beta_target-self.beta
@@ -129,11 +130,13 @@ class axis:
 		#check if arrived to target	
 		if  abs(self.delta) <= self.pointError:
 			self.slewend=True
+			print "SLEW END"
 			self.v=self.vtracking
 			self.a=0
 			steps=self.delta
-			self.beta=self.beta_target
-			#print "SLEW END"
+			self.beta=self.beta+steps
+			self.track(self.vtracking)
+			#self.beta=ephem.degrees(self.beta_target)
 			return
 
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
@@ -197,7 +200,7 @@ class mount:
 		return
 
 	def coords(self):
-		print time.time()-self.T0,self.axis1.timestep,self.axis1.timestep,self.axis1.beta, \
+		print time.time()-self.T0,self.axis1.timestep,self.axis2.timestep,self.axis1.beta, \
 			self.axis2.beta,self.axis1.v,self.axis2.v,self.axis1.a,self.axis2.a
 
 	def end(self):
@@ -209,7 +212,7 @@ if __name__ == '__main__':
 	#m=mount(1,1)
 	a=ephem.degrees('02:00:00')
 	v=ephem.degrees('05:00:00')
-	e=ephem.degrees('00:00:01')
+	e=ephem.degrees('00:01:00')
 	m=mount(a,v,e)
 	m.trackSpeed(e,0)
 	RA=ephem.hours('01:00:00')
