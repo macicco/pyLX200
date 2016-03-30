@@ -41,8 +41,8 @@ class axis:
 
 	def slew(self,beta,blocking=False):
 		self.tracking=False
-		print "TRACKING END"
-		print "SLEW START"
+		#print "TRACKING END"
+		#print "SLEW START"
 		self.slewend=False
 		self.beta_target=beta
 		#self.v=self.vtracking
@@ -52,7 +52,7 @@ class axis:
 			time.sleep(1)
 
 	def track(self,v):
-		print "TRACKING START"
+		#print "TRACKING START"
 		self.tracking=True
 		self.vtracking=v
 
@@ -130,7 +130,7 @@ class axis:
 		#check if arrived to target	
 		if  abs(self.delta) <= self.pointError:
 			self.slewend=True
-			print "SLEW END"
+			#print "SLEW END"
 			self.v=self.vtracking
 			self.a=0
 			steps=self.delta
@@ -217,7 +217,7 @@ if __name__ == '__main__':
 	m.trackSpeed(e,0)
 	RA=ephem.hours('01:00:00')
 	DEC=ephem.degrees('15:00:00')
-	m.slew(RA,DEC)
+	#m.slew(RA,DEC)
 	t=0
 	while t<15:
 		t=t+m.axis1.timestep*2

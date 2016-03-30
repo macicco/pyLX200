@@ -52,8 +52,8 @@ class lx200conductor():
 		self.slewing=False
 		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
-		v=ephem.degrees('55:00:00')
-		a=ephem.degrees('05:00:00')
+		v=ephem.degrees('05:00:00')
+		a=ephem.degrees('01:00:00')
 		self.m=ramps.mount(a,v,self.pointError)
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
@@ -84,7 +84,7 @@ class lx200conductor():
 		print "Starting motors."
 	  	while self.RUN:
 			time.sleep(0.1)
-			self.observer.date=ephem.now()
+			self.observer.date=ephem.Date(datetime.datetime.utcnow())
 			sideral=self.observer.sidereal_time()
 			ra=ephem.hours(sideral-self.m.axis1.beta).norm
 			if ra==ephem.hours("24:00:00"):
@@ -197,13 +197,14 @@ class lx200conductor():
 
 	def cmd_getTelescopeRA(self,arg):
 		if True:
-			self.observer.date=ephem.now()
+			self.observer.date=ephem.Date(datetime.datetime.utcnow())
 			sideral=self.observer.sidereal_time()
 			ra=ephem.hours(sideral-self.m.axis1.beta).norm
 			if ra==ephem.hours("24:00:00"):
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 		data=str(self.RA)
+		print "DATA:",time.time(),self.observer.date,self.RA,data,ephem.hours(sideral),ephem.hours(self.m.axis1.beta)
 		H,M,S=data.split(':')
 		H=int(H)
 		M=int(M)
