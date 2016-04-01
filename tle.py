@@ -13,8 +13,8 @@ def group(lst, n):
 #Code to get TLE and Comet (format Xephem) from Minor Planet Center
 
 class TLEhandler:
-	def __init__(self):
-		self.setObserver()
+	def __init__(self,here):
+		self.observer=here
 
 	#read TLE file
 	def readTLEfile(self,url):
@@ -37,16 +37,6 @@ class TLEhandler:
 		url="http://celestrak.com/NORAD/elements/stations.txt"
 		return self.TLE(url,'ISS')
 
-	def setObserver(self):
-		here = ephem.Observer()
-		here.lat="40.440154"
-		here.lon="-3.668747"
-		print "COORD:", here.lat,here.lon
-		here.horizon="00:00:00"
-		here.elev = 700
-		here.temp = 25e0
-		here.compute_pressure()
-		self.observer=here
 
 	def path(self,date=ephem.now(),interval=10,step=20):
 		obs=self.observer
@@ -63,7 +53,17 @@ class TLEhandler:
 
 
 if __name__=='__main__':
-	i=TLEhandler()
+	here = ephem.Observer()
+	here.lat="40.440154"
+	here.lon="-3.668747"
+	print "COORD:", here.lat,here.lon
+	here.horizon="00:00:00"
+	here.elev = 700
+	here.temp = 25e0
+	here.compute_pressure()
+
+
+	i=TLEhandler(here)
 	iss=i.ISS()
 	iss.compute()
 	print iss.ra,iss.dec

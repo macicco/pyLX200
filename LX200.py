@@ -9,6 +9,7 @@ https://github.com/peterjc/longsight/blob/master/telescope_server.py
 import socket
 import sys
 import select
+import time
 from thread import *
 
 import LX200CMD
@@ -39,15 +40,24 @@ conductor=LX200CMD.lx200conductor()
 
 
 #End='something useable as an end marker'
-def recv_end(the_socket):
+def recv_end(conn):
     End='#'
     total_data=[]
-    data=''
     while True:
-            data=the_socket.recv(1)
+	    time.sleep(0.05)
+    	    data=''
+
+	    try:	
+            	data=conn.recv(1)
+	    except:
+		print "socket close"
+		cmd="SOCKET_CLOSE"	
+		break
+
 	    if data=='':
-		continue
-	
+		cmd="SOCKET_CLOSE"	
+		break
+
             if End in data:
                 total_data.append(data[:data.find(End)])
 		cmd=''.join(total_data).replace('\n','').replace('\r','')
@@ -64,34 +74,23 @@ def recv_end(the_socket):
 #Function for handling connections. This will be used to create threads
 def clientthread(conn):
     RUN=True
-    data=''
+
     #Sending message to connected client
     #conn.send('LX200 mount controler:OK\n') #send only takes string
      
     #infinite loop so that function do not terminate and thread do not end.
     while RUN:
-    	try:
-        	ready_to_read, ready_to_write, in_error = \
-        	    select.select([conn,], [conn,], [], 5)
-    	except select.error:
-         	# connection error event here, maybe reconnect
-        	print 'connection error'
-        	break
-
-    	if len(ready_to_read) > 0:
 	    	cmd=recv_end(conn)
+		if cmd == "SOCKET_CLOSE":
+			break
 		#print "<-",cmd
 		reply=conductor.cmd(cmd)
 		#print "->",reply
     		conn.send(str(reply))
 
-    	if len(ready_to_write) <= 0 :
-        	print 'connection closed'
-        	break
-
 
     #came out of loop
-    conn.shutdown(2)    # 0 = done receiving, 1 = done sending, 2 = both
+    #conn.shutdown(2)    # 0 = done receiving, 1 = done sending, 2 = both
     conn.close()
     print "Disconnecting.."
  

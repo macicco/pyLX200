@@ -204,7 +204,7 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 		data=str(self.RA)
-		print "DATA:",time.time(),self.observer.date,self.RA,data,ephem.hours(sideral),ephem.hours(self.m.axis1.beta)
+		#print "DATA:",time.time(),self.observer.date,self.RA,data,ephem.hours(sideral),ephem.hours(self.m.axis1.beta)
 		H,M,S=data.split(':')
 		H=int(H)
 		M=int(M)

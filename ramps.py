@@ -217,12 +217,12 @@ if __name__ == '__main__':
 	m.trackSpeed(e,0)
 	RA=ephem.hours('01:00:00')
 	DEC=ephem.degrees('15:00:00')
-	#m.slew(RA,DEC)
+	m.slew(RA,DEC)
 	t=0
 	while t<15:
 		t=t+m.axis1.timestep*2
 		time.sleep(m.axis1.timestep*2)
-		m.coords()
+		#m.coords()
 	m.end()
 	exit(0)
 
@@ -232,7 +232,7 @@ if __name__ == '__main__':
 		x=math.sin(float(v)/100.)
 		RA_axis.track(x)
 		time.sleep(RA_axis.timestep*2)
-		#print RA_axis.beta,RA_axis.v,RA_axis.a,x
+		print RA_axis.beta,RA_axis.v,RA_axis.a,x
 	RA_axis.kill=True
 
 	'''
