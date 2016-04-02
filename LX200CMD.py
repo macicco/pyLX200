@@ -208,18 +208,18 @@ class lx200conductor():
 		self.DEC=ephem.degrees(self.m.axis2.beta)
 		data=str(self.DEC)
 		D,M,S=data.split(':')
-		if int(D[0])>=0 or D[0]=='+':
-			sign='+'
-		else:
+		if  D[0]=='-':
 			sign='-'
+		else:
+			sign='+'
 		D=int(D)
 		M=int(M)
 		S=round(float(S))
 		#print D,M,S 
-		d="%s%02d*%02d:%02d"  % (sign,D,M,S)
+		d="%s%02d*%02d:%02d"  % (sign,abs(D),M,S)
 		d=d.replace('*',chr(223))
 		#d="%+03d*%02d"  % (D,M)
-		print "DEC::::",d,self.DEC
+		#print "DEC::::",d,self.DEC
 		return d+'#'
 
     	def cmd_pulseE(self,arg):

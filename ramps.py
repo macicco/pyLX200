@@ -58,6 +58,7 @@ class axis:
 		self.vtracking=v
 
 
+
 	def sync(self,b):
 		self.beta_target=b
 		self.beta=b
@@ -67,15 +68,17 @@ class axis:
 	def run(self):
 		self.T=time.time()
 		while not self.kill:
+			#estimate the timestep based on the error point
+			if self.v !=0:
+				self.timesleep=abs(float(self.pointError)/(self.v*2))
+			else:
+				self.timesleep=self.timestepMax
 			time.sleep(self.timesleep)
 			now=time.time()
-			delta=now-self.T
-			#if delta<self.timestep/3:
-			#	continue
+			deltaT=now-self.T
 			self.T=now
-			self.timestep=delta
-			#print delta
-
+			print self.name,self.timestep,deltaT,self.v
+			self.timestep=deltaT
 			if self.tracking:
 				self.tracktick()
 			else:
@@ -108,6 +111,10 @@ class axis:
 			#This change to tracktick() in run()
 			#print "Change_to_track"
 			return
+
+		#Update target position with the tracking speed
+		self.beta_target=self.beta_target+self.vtracking*self.timestep
+
 		self.delta=self.beta_target-self.beta
 		sign=math.copysign(1,self.delta)
 		v_sign=math.copysign(1,self.v)
