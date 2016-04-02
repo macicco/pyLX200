@@ -12,6 +12,7 @@ def threaded(fn):
 
 class axis:
 	def __init__(self,a,v,pointError):
+		self.name=0
 		self.pointError=float(pointError)
 		self.timesleep=0.0001
 		self.timestepMax=0.5
@@ -108,37 +109,41 @@ class axis:
 			#print "Change_to_track"
 			return
 		self.delta=self.beta_target-self.beta
-		self.v=self.v+self.a*self.timestep
-
 		sign=math.copysign(1,self.delta)
+		v_sign=math.copysign(1,self.v)
+
 		self.beta_slope=(self.v*self.v)/(2*self.acceleration) 
 		self.t_slope=self.v/self.acceleration  
-		self.a=self.acceleration*sign
-
-
-	   	#check if already at max speed
-		if abs(self.v)>=abs(self._vmax):
-			v_sign=math.copysign(1,self.v)
-			if sign==v_sign:
-				self.v=self._vmax*sign
-				self.a=0
-	
-		#check if it is time to deccelerate
-		if abs(self.delta) - self.beta_slope<=0:
-			self.a=-self.acceleration*sign
 
 		#check if arrived to target	
 		if  abs(self.delta) <= self.pointError:
 			self.slewend=True
-			#print "SLEW END"
 			self.v=self.vtracking
 			self.a=0
 			steps=self.delta
 			self.beta=self.beta+steps
 			self.track(self.vtracking)
 			#self.beta=ephem.degrees(self.beta_target)
+			print self.name,"Slew End",ephem.degrees(self.beta)
 			return
 
+
+		#check if it is time to deccelerate
+		if abs(self.delta) - self.beta_slope<=0:
+			self.a=-self.acceleration*sign
+			#print self.name,"Decelerating:",self.a
+		else:
+			self.a=self.acceleration*sign
+
+
+	   	#check if already at max speed
+		if abs(self.v)>abs(self._vmax):
+			if sign==v_sign:
+				self.v=self._vmax*v_sign
+				self.a=0
+				#print self.name,"MAX V:",self.v
+
+		self.v=self.v+self.a*self.timestep
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
 		self.deltaOld=self.delta
@@ -149,6 +154,8 @@ class mount:
 	def __init__(self,a,v,pointError):
 		self.axis1=axis(a,v,pointError)
 		self.axis2=axis(a,v,pointError)
+		self.axis1.name="RA"
+		self.axis2.name="DEC"
 		self.T0=time.time()
 		self.run()
 
@@ -186,8 +193,8 @@ class mount:
 		print deltax,deltay,angle
 	
 	def setVmax(self,x,y):
-		deltax=x-self.axis1.beta
-		deltay=y-self.axis2.beta
+		deltax=abs(x-self.axis1.beta)
+		deltay=abs(y-self.axis2.beta)
 		self.axis1._vmax=float(self.axis1.vmax)
 		self.axis2._vmax=float(self.axis2.vmax)
 		if deltax==0 or deltay==0:
@@ -216,7 +223,7 @@ if __name__ == '__main__':
 	m=mount(a,v,e)
 	m.trackSpeed(e,0)
 	RA=ephem.hours('01:00:00')
-	DEC=ephem.degrees('15:00:00')
+	DEC=ephem.degrees('-15:00:00')
 	m.slew(RA,DEC)
 	t=0
 	while t<15:
@@ -232,7 +239,7 @@ if __name__ == '__main__':
 		x=math.sin(float(v)/100.)
 		RA_axis.track(x)
 		time.sleep(RA_axis.timestep*2)
-		print RA_axis.beta,RA_axis.v,RA_axis.a,x
+		#print RA_axis.beta,RA_axis.v,RA_axis.a,x
 	RA_axis.kill=True
 
 	'''

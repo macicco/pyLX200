@@ -45,20 +45,20 @@ class lx200conductor():
 		}
 		self.targetRA=0		
 		self.targetDEC=0
-		self.pointError=ephem.degrees('00:00:10')	
+		self.pointError=ephem.degrees('00:00:01')	
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
 		self.slewing=False
 		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
-		v=ephem.degrees('05:00:00')
+		v=ephem.degrees('10:00:00')
 		a=ephem.degrees('01:00:00')
 		self.m=ramps.mount(a,v,self.pointError)
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
-		#self.run()	
+		self.run()	
 
 	def setObserver(self):
 		here = ephem.Observer()
@@ -79,9 +79,6 @@ class lx200conductor():
 		
 	@threaded
 	def run(self):
-		#TEST. ONLY UPDATE IF NEED
-		return
-		print "Starting motors."
 	  	while self.RUN:
 			time.sleep(0.1)
 			self.observer.date=ephem.Date(datetime.datetime.utcnow())
@@ -91,13 +88,6 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
-			'''
-			if abs(self.RA-self.targetRA)<=self.pointError and abs(self.DEC-self.targetDEC)<=self.pointError:
-				#print "TRAK"
-				self.slewing=False
-				#self.track()
-			'''
-
 			#print self.RA,self.DEC
 
 		self.end()
@@ -170,7 +160,7 @@ class lx200conductor():
 
 	def cmd_slew(self,arg):
 		ra=self.hourAngle(self.targetRA)	
-		print "slewing to:",ra,self.targetDEC
+		print "slewing to:",ra,self.targetDEC," from:",self.hourAngle(self.RA),self.DEC
 		self.m.slew(ra,self.targetDEC)
 		#return values 0==OK, 1 == below Horizon
 		return "0#"
@@ -214,16 +204,22 @@ class lx200conductor():
 		return d+'#'
 
 	def cmd_getTelescopeDEC(self,arg):
+		sign=math.copysign(1,self.m.axis2.beta)	
 		self.DEC=ephem.degrees(self.m.axis2.beta)
 		data=str(self.DEC)
 		D,M,S=data.split(':')
+		if int(D[0])>=0 or D[0]=='+':
+			sign='+'
+		else:
+			sign='-'
 		D=int(D)
 		M=int(M)
 		S=round(float(S))
 		#print D,M,S 
-		d="%+03d*%02d:%02d"  % (D,M,S)
+		d="%s%02d*%02d:%02d"  % (sign,D,M,S)
 		d=d.replace('*',chr(223))
 		#d="%+03d*%02d"  % (D,M)
+		print "DEC::::",d,self.DEC
 		return d+'#'
 
     	def cmd_pulseE(self,arg):
