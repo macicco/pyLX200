@@ -5,16 +5,18 @@ import time,datetime
 import threading
 import ephem
 
+#Decorator to run some functions in threads
 def threaded(fn):
     def wrapper(*args, **kwargs):
         threading.Thread(target=fn, args=args, kwargs=kwargs).start()
     return wrapper
 
-class axis:
+#virtual class. It must be used to derive driver class
+#wich implemente the motor dirver
+class axis(object):
 	def __init__(self,a,v,pointError):
 		self.name=0
 		self.pointError=float(pointError)
-		self.timesleep=0.0001
 		self.timestepMax=0.5
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
@@ -73,21 +75,28 @@ class axis:
 				self.timesleep=abs(float(self.pointError)/(self.v*2))
 			else:
 				self.timesleep=self.timestepMax
-			time.sleep(self.timesleep)
+
+
+			#now calculate the actual timestep
 			now=time.time()
 			deltaT=now-self.T
-			self.T=now
-			print self.name,self.timestep,deltaT,self.v
-			self.timestep=deltaT
-			if self.tracking:
-				self.tracktick()
-			else:
-				self.slewtick()
 
+			#print self.name,self.timestep,deltaT,self.v
+			self.timestep=deltaT
+
+			if self.tracking:
+				steps=self.tracktick()
+			else:
+				steps=self.slewtick()
+			
+			self.doSteps(steps)
+			self.T=now
 
 	def tracktick(self):
 		steps=self.vtracking*self.timestep
 		self.beta=self.beta+steps
+
+		return steps
 
 	def tracktickSmooth(self):
 		self.vdelta=self.vtracking-self.v
@@ -106,11 +115,13 @@ class axis:
 		self.beta=self.beta+steps
 		#print self.beta,self.v,self.a,steps
 
+		return steps
+
 	def slewtick(self):
 		if self.slewend:
-			#This change to tracktick() in run()
-			#print "Change_to_track"
-			return
+			#This change to tracktick() in run()		
+			steps=0
+			return steps
 
 		#Update target position with the tracking speed
 		self.beta_target=self.beta_target+self.vtracking*self.timestep
@@ -132,7 +143,8 @@ class axis:
 			self.track(self.vtracking)
 			#self.beta=ephem.degrees(self.beta_target)
 			print self.name,"Slew End",ephem.degrees(self.beta)
-			return
+			steps=0
+			return steps
 
 
 		#check if it is time to deccelerate
@@ -156,9 +168,49 @@ class axis:
 		self.deltaOld=self.delta
 
 		#print self.beta,self.v,self.a,steps
+		
+		return steps
+
+	def doSteps(self,steps):
+		#sleep
+		time.sleep(self.timesleep)
+		pass
+
+#Stepper implementation
+class AxisDriver(axis):
+	def __init__(self,a,v,pointError):
+		super(AxisDriver, self).__init__(a,v,pointError)
+		self.stepsPerRevolution=1024
+		self.corona=10
+		self.plate=200
+		self.FullTurnSteps=self.corona*self.plate*self.stepsPerRevolution
+		self.stepsRest=0
+		self.pulseWidth=0.001
+		self.pulseDuty=0.5
+	
+	def doSteps(self,delta):
+		steps=(self.FullTurnSteps*delta)/(math.pi*2)+self.stepsRest
+		Isteps=round(steps)
+		self.stepsRest=steps-Isteps
+		if Isteps<0:
+			dir=-1
+		else:
+			dir=1
+		Isteps=int(abs(Isteps))
+		print delta,dir,Isteps,self.stepsRest
+		
+		for p in range(Isteps):
+			pin=1
+			time.sleep(self.pulseWidth*self.pulseDuty)
+			pin=0
+
+
+
 
 class mount:
 	def __init__(self,a,v,pointError):
+		#self.axis1=AxisDriver(a,v,pointError)
+		#self.axis2=AxisDriver(a,v,pointError)
 		self.axis1=axis(a,v,pointError)
 		self.axis2=axis(a,v,pointError)
 		self.axis1.name="RA"

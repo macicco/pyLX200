@@ -7,6 +7,7 @@ import ephem
 import time,datetime
 import threading
 import ramps
+import tle
 import math
 
 def threaded(fn):
@@ -53,11 +54,15 @@ class lx200conductor():
 		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
 		v=ephem.degrees('10:00:00')
-		a=ephem.degrees('01:00:00')
+		a=ephem.degrees('05:00:00')
 		self.m=ramps.mount(a,v,self.pointError)
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
+
+		self.i=tle.TLEhandler(self.observer)
+		self.iss=self.i.ISS()
+
 		self.run()	
 
 	def setObserver(self):
@@ -81,6 +86,7 @@ class lx200conductor():
 	def run(self):
 	  	while self.RUN:
 			time.sleep(0.1)
+			#update 
 			self.observer.date=ephem.Date(datetime.datetime.utcnow())
 			sideral=self.observer.sidereal_time()
 			ra=ephem.hours(sideral-self.m.axis1.beta).norm
@@ -88,12 +94,23 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
+
+
+
+			#print self.iss.ra,self.iss.dec
+
 			#print self.RA,self.DEC
 
 		self.end()
 		print "MOTORS STOPPED"
 
-
+	def go2ISS(self):
+			self.observer.date=ephem.Date(datetime.datetime.utcnow())
+			self.iss.compute()
+			self.targetRA=self.iss.ra
+			self.targetDEC=self.iss.dec
+			self.cmd_slew('')
+  			return "target#"
 
 	def cmd(self,cmd):
                 for c in self.CMDs.keys():
@@ -186,20 +203,17 @@ class lx200conductor():
 
 
 	def cmd_getTelescopeRA(self,arg):
-		if True:
-			self.observer.date=ephem.Date(datetime.datetime.utcnow())
-			sideral=self.observer.sidereal_time()
-			ra=ephem.hours(sideral-self.m.axis1.beta).norm
-			if ra==ephem.hours("24:00:00"):
-				ra=ephem.hours("00:00:00")
-			self.RA=ra
+		self.observer.date=ephem.Date(datetime.datetime.utcnow())
+		sideral=self.observer.sidereal_time()
+		ra=ephem.hours(sideral-self.m.axis1.beta).norm
+		if ra==ephem.hours("24:00:00"):
+			ra=ephem.hours("00:00:00")
+		self.RA=ra
 		data=str(self.RA)
-		#print "DATA:",time.time(),self.observer.date,self.RA,data,ephem.hours(sideral),ephem.hours(self.m.axis1.beta)
 		H,M,S=data.split(':')
 		H=int(H)
 		M=int(M)
 		S=round(float(S))
-		#d=data[:data.index(".")]
 		d="%02d:%02d:%02d"  % (H,M,S)
 		return d+'#'
 
@@ -215,11 +229,8 @@ class lx200conductor():
 		D=int(D)
 		M=int(M)
 		S=round(float(S))
-		#print D,M,S 
 		d="%s%02d*%02d:%02d"  % (sign,abs(D),M,S)
 		d=d.replace('*',chr(223))
-		#d="%+03d*%02d"  % (D,M)
-		#print "DEC::::",d,self.DEC
 		return d+'#'
 
     	def cmd_pulseE(self,arg):
