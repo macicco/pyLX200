@@ -15,9 +15,11 @@ def threaded(fn):
 #wich implemente the motor dirver
 class axis(object):
 	def __init__(self,a,v,pointError):
+		self.debug=True
 		self.name=0
 		self.pointError=float(pointError)
-		self.timestepMax=0.5
+		self.timestepMax=0.1
+		self.timestepMin=0.000001
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
 		self.a=0
@@ -33,6 +35,11 @@ class axis(object):
 		self.kill=False
 		self.deltaOld=0
 		#self.say()
+
+	def setName(self,name):
+		self.name=name
+		if self.debug:
+			self.logfile=open(str(self.name)+".log",'w')
 
 	def say(self):
 		print self.acceleration,self.vmax,self.v
@@ -72,10 +79,13 @@ class axis(object):
 		while not self.kill:
 			#estimate the timestep based on the error point
 			if self.v !=0:
-				self.timesleep=abs(float(self.pointError)/(self.v*2))
+				self.timesleep=abs(float(self.pointError)/(self.v))
+				if self.timesleep<self.timestepMin:
+					self.timesleep=self.timestepMin
+				if self.timesleep>self.timestepMax:
+					self.timesleep=self.timestepMax
 			else:
 				self.timesleep=self.timestepMax
-
 
 			#now calculate the actual timestep
 			now=time.time()
@@ -95,7 +105,7 @@ class axis(object):
 	def tracktick(self):
 		steps=self.vtracking*self.timestep
 		self.beta=self.beta+steps
-
+		self.v=self.vtracking
 		return steps
 
 	def tracktickSmooth(self):
@@ -167,28 +177,37 @@ class axis(object):
 		self.beta=self.beta+steps
 		self.deltaOld=self.delta
 
-		#print self.beta,self.v,self.a,steps
+		#print self.beta,self.v,self.a,"STEPS:",steps
 		
 		return steps
 
 	def doSteps(self,steps):
 		#sleep
 		time.sleep(self.timesleep)
+		if self.debug:
+			line=str(self.name)+" "+str(self.timesleep)+" "+str(steps)
+			if steps>=self.timesleep:
+				line=line+" NOT TIME!"
+			self.logfile.write(line+'\n')
 		pass
 
 #Stepper implementation
 class AxisDriver(axis):
 	def __init__(self,a,v,pointError):
 		super(AxisDriver, self).__init__(a,v,pointError)
-		self.stepsPerRevolution=1024
-		self.corona=10
+		self.stepsPerRevolution=200*8
+		self.corona=50
 		self.plate=200
-		self.FullTurnSteps=self.corona*self.plate*self.stepsPerRevolution
+		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
 		self.pulseWidth=0.001
-		self.pulseDuty=0.5
+		self.pointError=math.pi*2/self.FullTurnSteps
+		self.timestepMin=2*self.pulseWidth
+		print self.name,"Min step (point Error)",ephem.degrees(self.pointError)
+
 	
 	def doSteps(self,delta):
+
 		steps=(self.FullTurnSteps*delta)/(math.pi*2)+self.stepsRest
 		Isteps=round(steps)
 		self.stepsRest=steps-Isteps
@@ -197,24 +216,49 @@ class AxisDriver(axis):
 		else:
 			dir=1
 		Isteps=int(abs(Isteps))
-		print delta,dir,Isteps,self.stepsRest
-		
-		for p in range(Isteps):
-			pin=1
-			time.sleep(self.pulseWidth*self.pulseDuty)
-			pin=0
+		if Isteps==0:
+			pulseLasting=0
+		else:
+			pulseLasting=self.timesleep/Isteps
+
+		#print self.timesleep,self.name,ephem.degrees(delta),dir,Isteps,self.stepsRest,pulseLasting
+		if self.debug:
+			line=str(self.name)+" timesleep "+str(self.timesleep)+" delta: "+str(delta)+" istep: "+str(Isteps)
+			if delta>=self.timesleep:
+				line=line+" NOT TIME!"
+			self.logfile.write(line+'\n')
+			#print line
+
+		if Isteps==0:
+			time.sleep(self.timesleep)
+			return		
+
+		if pulseLasting-self.pulseWidth <0:
+			print self.name,"timestep: to low for pulsewidth"
+			for p in range(Isteps):
+				pin=1
+				time.sleep(self.pulseWidth)
+				pin=0
+				time.sleep(self.pulseWidth*0.1)
+
+		else:
+			for p in range(Isteps):
+				pin=1
+				time.sleep(self.pulseWidth)
+				pin=0
+				time.sleep(pulseLasting-self.pulseWidth)
 
 
 
 
 class mount:
 	def __init__(self,a,v,pointError):
-		#self.axis1=AxisDriver(a,v,pointError)
-		#self.axis2=AxisDriver(a,v,pointError)
-		self.axis1=axis(a,v,pointError)
-		self.axis2=axis(a,v,pointError)
-		self.axis1.name="RA"
-		self.axis2.name="DEC"
+		self.axis1=AxisDriver(a,v,pointError)
+		self.axis2=AxisDriver(a,v,pointError)
+		#self.axis1=axis(a,v,pointError)
+		#self.axis2=axis(a,v,pointError)
+		self.axis1.setName("RA")
+		self.axis2.setName("DEC")
 		self.T0=time.time()
 		self.run()
 
