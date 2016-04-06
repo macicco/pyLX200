@@ -5,6 +5,9 @@ import time,datetime
 import threading
 import ephem
 
+import pigpio
+pi=pigpio.pi()
+
 #Decorator to run some functions in threads
 def threaded(fn):
     def wrapper(*args, **kwargs):
@@ -193,8 +196,9 @@ class axis(object):
 
 #Stepper implementation
 class AxisDriver(axis):
-	def __init__(self,a,v,pointError):
+	def __init__(self,a,v,pointError,PIN):
 		super(AxisDriver, self).__init__(a,v,pointError)
+		self.PIN=PIN
 		self.stepsPerRevolution=200*8
 		self.corona=50
 		self.plate=200
@@ -204,6 +208,7 @@ class AxisDriver(axis):
 		self.pointError=math.pi*2/self.FullTurnSteps
 		self.timestepMin=2*self.pulseWidth
 		print self.name,"Min step (point Error)",ephem.degrees(self.pointError)
+
 
 	
 	def doSteps(self,delta):
@@ -236,16 +241,16 @@ class AxisDriver(axis):
 		if pulseLasting-self.pulseWidth <0:
 			print self.name,"timestep: to low for pulsewidth"
 			for p in range(Isteps):
-				pin=1
+				pi.write(self.PIN, 1)
 				time.sleep(self.pulseWidth)
-				pin=0
+				pi.write(self.PIN, 0)
 				time.sleep(self.pulseWidth*0.1)
 
 		else:
 			for p in range(Isteps):
-				pin=1
+				pi.write(self.PIN, 1)
 				time.sleep(self.pulseWidth)
-				pin=0
+				pi.write(self.PIN, 0)
 				time.sleep(pulseLasting-self.pulseWidth)
 
 
@@ -253,8 +258,8 @@ class AxisDriver(axis):
 
 class mount:
 	def __init__(self,a,v,pointError):
-		self.axis1=AxisDriver(a,v,pointError)
-		self.axis2=AxisDriver(a,v,pointError)
+		self.axis1=AxisDriver(a,v,pointError,4)
+		self.axis2=AxisDriver(a,v,pointError,5)
 		#self.axis1=axis(a,v,pointError)
 		#self.axis2=axis(a,v,pointError)
 		self.axis1.setName("RA")
