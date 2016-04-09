@@ -5,8 +5,11 @@ import time,datetime
 import threading
 import ephem
 
-import pigpio
-pi=pigpio.pi()
+raspi=True
+
+if raspi:
+	import pigpio
+	pi=pigpio.pi('cronostamper')
 
 #Decorator to run some functions in threads
 def threaded(fn):
@@ -21,8 +24,8 @@ class axis(object):
 		self.debug=True
 		self.name=0
 		self.pointError=float(pointError)
-		self.timestepMax=0.1
-		self.timestepMin=0.000001
+		self.timestepMax=0.01
+		self.timestepMin=0.001
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
 		self.a=0
@@ -37,12 +40,15 @@ class axis(object):
 		self.slewend=False
 		self.kill=False
 		self.deltaOld=0
+		self.T0=time.time()
 		#self.say()
 
 	def setName(self,name):
 		self.name=name
 		if self.debug:
 			self.logfile=open(str(self.name)+".log",'w')
+			line="T timestep timesleep vmax beta_target, beta v a steps\n"
+			self.logfile.write(line)
 
 	def say(self):
 		print self.acceleration,self.vmax,self.v
@@ -82,13 +88,14 @@ class axis(object):
 		while not self.kill:
 			#estimate the timestep based on the error point
 			if self.v !=0:
-				self.timesleep=abs(float(self.pointError)/(self.v))
+				self.timesleep=abs(float(self.pointError)/(self.v*3))
 				if self.timesleep<self.timestepMin:
 					self.timesleep=self.timestepMin
 				if self.timesleep>self.timestepMax:
 					self.timesleep=self.timestepMax
 			else:
 				self.timesleep=self.timestepMax
+
 
 			#now calculate the actual timestep
 			now=time.time()
@@ -156,7 +163,6 @@ class axis(object):
 			self.track(self.vtracking)
 			#self.beta=ephem.degrees(self.beta_target)
 			print self.name,"Slew End",ephem.degrees(self.beta)
-			steps=0
 			return steps
 
 
@@ -173,85 +179,96 @@ class axis(object):
 			if sign==v_sign:
 				self.v=self._vmax*v_sign
 				self.a=0
-				#print self.name,"MAX V:",self.v
+				print self.name,"V MAX :",ephem.degrees(self.v),ephem.degrees(self.v*self.timestep)
 
 		self.v=self.v+self.a*self.timestep
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
 		self.deltaOld=self.delta
-
-		#print self.beta,self.v,self.a,"STEPS:",steps
-		
+		#print self.name,"V,v*timestep,steps",ephem.degrees(self.v),ephem.degrees(self.v*self.timestep),ephem.degrees(steps)
 		return steps
 
 	def doSteps(self,steps):
 		#sleep
 		time.sleep(self.timesleep)
 		if self.debug:
-			line=str(self.name)+" "+str(self.timesleep)+" "+str(steps)
-			if steps>=self.timesleep:
-				line=line+" NOT TIME!"
-			self.logfile.write(line+'\n')
-		pass
+			self.saveDebug(steps)
+		
+	def saveDebug(self,steps):
+		line="%g %g %g %g %g %g %g %g %d\n" % (time.time()-self.T0,self.timestep,self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,steps)
+		self.logfile.write(line)
 
 #Stepper implementation
 class AxisDriver(axis):
 	def __init__(self,a,v,pointError,PIN):
 		super(AxisDriver, self).__init__(a,v,pointError)
 		self.PIN=PIN
-		self.stepsPerRevolution=200*8
-		self.corona=50
-		self.plate=200
+		self.stepsPerRevolution=200*16*1 	#Motor:steps*microsteps*gearbox
+		self.corona=30
+		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
-		self.pulseWidth=0.001
+		self.pulseWidth=0.001    		#in seconds
+		self.pulseDuty=0.5
 		self.pointError=math.pi*2/self.FullTurnSteps
-		self.timestepMin=2*self.pulseWidth
-		print self.name,"Min step (point Error)",ephem.degrees(self.pointError)
+		self.vmax=self.pointError/self.pulseWidth
+		self._vmax=self.vmax
+		self.acceleration=self.vmax/10.
+		print "Min step (point Error)",ephem.degrees(self.pointError) \
+			,"Max speed: ",ephem.degrees(self._vmax)
 
 
 	
 	def doSteps(self,delta):
-
+		#Distribute steps on 
+		#delta is in radians. Calculate actual steps 
 		steps=(self.FullTurnSteps*delta)/(math.pi*2)+self.stepsRest
 		Isteps=round(steps)
+
+		#acumultate the not integer part
 		self.stepsRest=steps-Isteps
+
+		#calculate direction of motion
 		if Isteps<0:
-			dir=-1
+			dire=-1
 		else:
-			dir=1
+			dire=1
+
 		Isteps=int(abs(Isteps))
+
 		if Isteps==0:
 			pulseLasting=0
-		else:
-			pulseLasting=self.timesleep/Isteps
-
-		#print self.timesleep,self.name,ephem.degrees(delta),dir,Isteps,self.stepsRest,pulseLasting
-		if self.debug:
-			line=str(self.name)+" timesleep "+str(self.timesleep)+" delta: "+str(delta)+" istep: "+str(Isteps)
-			if delta>=self.timesleep:
-				line=line+" NOT TIME!"
-			self.logfile.write(line+'\n')
-			#print line
-
-		if Isteps==0:
 			time.sleep(self.timesleep)
 			return		
+		else:
+			pulseLasting=self.timesleep/float(Isteps)
+			#print self.name,self.timestep-self.timesleep,Isteps,pulseLasting,Isteps*pulseLasting,self.timestep
+
+		#print delta,self.timesleep,self.timestep
+		#print self.timesleep,self.name,ephem.degrees(delta),dir,Isteps,self.stepsRest,pulseLasting,self.timesleep,self.timestep
+
+		if self.debug:
+			self.saveDebug(Isteps*dire)
+
+
 
 		if pulseLasting-self.pulseWidth <0:
-			print self.name,"timestep: to low for pulsewidth"
-			for p in range(Isteps):
-				pi.write(self.PIN, 1)
-				time.sleep(self.pulseWidth)
-				pi.write(self.PIN, 0)
-				time.sleep(self.pulseWidth*0.1)
+			print self.name,"\tTiming error (pulseLasting,pulseWidth,Isteps,timestep,timesleep)",\
+                              pulseLasting,self.pulseWidth,Isteps,self.timestep,self.timesleep
 
-		else:
-			for p in range(Isteps):
-				pi.write(self.PIN, 1)
-				time.sleep(self.pulseWidth)
-				pi.write(self.PIN, 0)
-				time.sleep(pulseLasting-self.pulseWidth)
+		for p in range(Isteps):
+		   if raspi:
+			pi.write(self.PIN, 1)
+			time.sleep(self.pulseWidth*self.pulseDuty)
+			pi.write(self.PIN, 0)
+			if pulseLasting-self.pulseWidth <0:
+				#print self.name,"timestep: to low for pulsewidth. Timing error",pulseLasting,self.pulseWidth,p
+				time.sleep(self.pulseWidth*(1.-self.pulseDuty))
+				#time.sleep(self.pulseWidth*0.1)
+				pass
+			else:
+				#print self.name," OK ",pulseLasting,self.pulseWidth
+				time.sleep(pulseLasting-self.pulseWidth*self.pulseDuty)
 
 
 
@@ -272,10 +289,10 @@ class mount:
 		self.axis1.run()
 		self.axis2.run()
 
-	def slew(self,x,y):
+	def slew(self,x,y,blocking=False):
 		self.setVmax(x,y)
-		self.axis1.slew(x)
-		self.axis2.slew(y)
+		self.axis1.slew(x,blocking)
+		self.axis2.slew(y,blocking)
 
 	def sync(self,x,y):
 		self.axis1.sync(x)
@@ -325,13 +342,13 @@ class mount:
 
 if __name__ == '__main__':
 	#m=mount(1,1)
-	a=ephem.degrees('02:00:00')
+	a=ephem.degrees('01:00:00')
 	v=ephem.degrees('05:00:00')
-	e=ephem.degrees('00:01:00')
+	e=ephem.degrees('00:00:01')
 	m=mount(a,v,e)
 	m.trackSpeed(e,0)
 	RA=ephem.hours('01:00:00')
-	DEC=ephem.degrees('-15:00:00')
+	DEC=ephem.degrees('-30:30:00')
 	m.slew(RA,DEC)
 	t=0
 	while t<15:
