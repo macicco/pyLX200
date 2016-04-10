@@ -24,7 +24,7 @@ class axis(object):
 		self.debug=True
 		self.name=0
 		self.pointError=float(pointError)
-		self.timestepMax=0.01
+		self.timestepMax=0.05
 		self.timestepMin=0.001
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
@@ -39,7 +39,6 @@ class axis(object):
 		self.vtracking=0
 		self.slewend=False
 		self.kill=False
-		self.deltaOld=0
 		self.T0=time.time()
 		#self.say()
 
@@ -88,7 +87,7 @@ class axis(object):
 		while not self.kill:
 			#estimate the timestep based on the error point
 			if self.v !=0:
-				self.timesleep=abs(float(self.pointError)/(self.v*3))
+				self.timesleep=abs(float(self.pointError)/(self.v*2))
 				if self.timesleep<self.timestepMin:
 					self.timesleep=self.timestepMin
 				if self.timesleep>self.timestepMax:
@@ -96,14 +95,12 @@ class axis(object):
 			else:
 				self.timesleep=self.timestepMax
 
-
 			#now calculate the actual timestep
 			now=time.time()
 			deltaT=now-self.T
 
 			#print self.name,self.timestep,deltaT,self.v
 			self.timestep=deltaT
-
 			if self.tracking:
 				steps=self.tracktick()
 			else:
@@ -179,12 +176,11 @@ class axis(object):
 			if sign==v_sign:
 				self.v=self._vmax*v_sign
 				self.a=0
-				print self.name,"V MAX :",ephem.degrees(self.v),ephem.degrees(self.v*self.timestep)
+				print self.name,"V MAX :",ephem.degrees(self.v),"MAX PATH:",ephem.degrees(self.v*self.timestep)
 
 		self.v=self.v+self.a*self.timestep
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
-		self.deltaOld=self.delta
 		#print self.name,"V,v*timestep,steps",ephem.degrees(self.v),ephem.degrees(self.v*self.timestep),ephem.degrees(steps)
 		return steps
 
@@ -203,29 +199,29 @@ class AxisDriver(axis):
 	def __init__(self,a,v,pointError,PIN):
 		super(AxisDriver, self).__init__(a,v,pointError)
 		self.PIN=PIN
-		self.stepsPerRevolution=200*16*1 	#Motor:steps*microsteps*gearbox
-		self.corona=30
+		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
+		self.corona=50
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
-		self.pulseWidth=0.001    		#in seconds
+		self.pulseWidth=0.0001    		#in seconds
 		self.pulseDuty=0.5
 		self.pointError=math.pi*2/self.FullTurnSteps
 		self.vmax=self.pointError/self.pulseWidth
 		self._vmax=self.vmax
-		self.acceleration=self.vmax/10.
+		#self.acceleration=self.vmax/10.
 		print "Min step (point Error)",ephem.degrees(self.pointError) \
 			,"Max speed: ",ephem.degrees(self._vmax)
 
 
-	
+
 	def doSteps(self,delta):
 		#Distribute steps on 
 		#delta is in radians. Calculate actual steps 
 		steps=(self.FullTurnSteps*delta)/(math.pi*2)+self.stepsRest
 		Isteps=round(steps)
 
-		#acumultate the not integer part
+		#acumultate the fractional part to the next step
 		self.stepsRest=steps-Isteps
 
 		#calculate direction of motion
@@ -242,19 +238,26 @@ class AxisDriver(axis):
 			return		
 		else:
 			pulseLasting=self.timesleep/float(Isteps)
-			#print self.name,self.timestep-self.timesleep,Isteps,pulseLasting,Isteps*pulseLasting,self.timestep
 
-		#print delta,self.timesleep,self.timestep
-		#print self.timesleep,self.name,ephem.degrees(delta),dir,Isteps,self.stepsRest,pulseLasting,self.timesleep,self.timestep
+		#Check if there is enought time to do the pulse and
+		#delay the pulses than have not room to the next cycle
+		if pulseLasting-self.pulseWidth <0:
+			Lsteps=int(self.timesleep/self.pulseWidth)
+			self.stepsRest=self.stepsRest+(Isteps-Lsteps)
+			print self.name,time.time()-self.T0,"\tProcastinating steps. \tORG:" ,Isteps,"\tDOING:",Lsteps,"\tPENDING:",Isteps-Lsteps
+			Isteps=Lsteps
+			if Isteps==0:
+				pulseLasting=0
+				time.sleep(self.timesleep)
+				return		
+			else:
+				pulseLasting=self.timesleep/float(Isteps)
+
+
 
 		if self.debug:
 			self.saveDebug(Isteps*dire)
 
-
-
-		if pulseLasting-self.pulseWidth <0:
-			print self.name,"\tTiming error (pulseLasting,pulseWidth,Isteps,timestep,timesleep)",\
-                              pulseLasting,self.pulseWidth,Isteps,self.timestep,self.timesleep
 
 		for p in range(Isteps):
 		   if raspi:
@@ -347,8 +350,8 @@ if __name__ == '__main__':
 	e=ephem.degrees('00:00:01')
 	m=mount(a,v,e)
 	m.trackSpeed(e,0)
-	RA=ephem.hours('01:00:00')
-	DEC=ephem.degrees('-30:30:00')
+	RA=ephem.hours('03:00:00')
+	DEC=ephem.degrees('15:00:00')
 	m.slew(RA,DEC)
 	t=0
 	while t<15:
