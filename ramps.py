@@ -24,7 +24,7 @@ class axis(object):
 		self.debug=True
 		self.name=0
 		self.pointError=float(pointError)
-		self.timestepMax=0.05
+		self.timestepMax=0.1
 		self.timestepMin=0.001
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
@@ -87,13 +87,15 @@ class axis(object):
 		while not self.kill:
 			#estimate the timestep based on the error point
 			if self.v !=0:
-				self.timesleep=abs(float(self.pointError)/(self.v*2))
+				self.timesleep=abs(float(self.pointError)/(self.v))
 				if self.timesleep<self.timestepMin:
 					self.timesleep=self.timestepMin
 				if self.timesleep>self.timestepMax:
 					self.timesleep=self.timestepMax
 			else:
 				self.timesleep=self.timestepMax
+
+
 
 			#now calculate the actual timestep
 			now=time.time()
@@ -168,7 +170,8 @@ class axis(object):
 			self.a=-self.acceleration*sign
 			#print self.name,"Decelerating:",self.a
 		else:
-			self.a=self.acceleration*sign
+			if abs(self.v)<abs(self._vmax):
+				self.a=self.acceleration*sign
 
 
 	   	#check if already at max speed
@@ -176,7 +179,7 @@ class axis(object):
 			if sign==v_sign:
 				self.v=self._vmax*v_sign
 				self.a=0
-				print self.name,"V MAX :",ephem.degrees(self.v),"MAX PATH:",ephem.degrees(self.v*self.timestep)
+				#print self.name,"V MAX :",ephem.degrees(self.v),"MAX PATH:",ephem.degrees(self.v*self.timestep)
 
 		self.v=self.v+self.a*self.timestep
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
@@ -199,12 +202,12 @@ class AxisDriver(axis):
 	def __init__(self,a,v,pointError,PIN):
 		super(AxisDriver, self).__init__(a,v,pointError)
 		self.PIN=PIN
-		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
+		self.stepsPerRevolution=200*16*1	#Motor:steps*microsteps*gearbox
 		self.corona=50
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
-		self.pulseWidth=0.0001    		#in seconds
+		self.pulseWidth=0.001    		#in seconds
 		self.pulseDuty=0.5
 		self.pointError=math.pi*2/self.FullTurnSteps
 		self.vmax=self.pointError/self.pulseWidth
@@ -244,7 +247,7 @@ class AxisDriver(axis):
 		if pulseLasting-self.pulseWidth <0:
 			Lsteps=int(self.timesleep/self.pulseWidth)
 			self.stepsRest=self.stepsRest+(Isteps-Lsteps)
-			print self.name,time.time()-self.T0,"\tProcastinating steps. \tORG:" ,Isteps,"\tDOING:",Lsteps,"\tPENDING:",Isteps-Lsteps
+			print self.name,time.time()-self.T0,"\tProcastinating steps. \tORG:" ,Isteps,"\tDOING:",Lsteps,"\tPENDING:",Isteps-Lsteps,
 			Isteps=Lsteps
 			if Isteps==0:
 				pulseLasting=0
@@ -252,6 +255,7 @@ class AxisDriver(axis):
 				return		
 			else:
 				pulseLasting=self.timesleep/float(Isteps)
+				print "pulse:",pulseLasting,pulseLasting*Isteps
 
 
 
@@ -261,17 +265,17 @@ class AxisDriver(axis):
 
 		for p in range(Isteps):
 		   if raspi:
+			t1 = pi.get_current_tick()
+			#Takes to much time!!! TODO: alternate method
 			pi.write(self.PIN, 1)
 			time.sleep(self.pulseWidth*self.pulseDuty)
 			pi.write(self.PIN, 0)
-			if pulseLasting-self.pulseWidth <0:
-				#print self.name,"timestep: to low for pulsewidth. Timing error",pulseLasting,self.pulseWidth,p
-				time.sleep(self.pulseWidth*(1.-self.pulseDuty))
-				#time.sleep(self.pulseWidth*0.1)
-				pass
-			else:
-				#print self.name," OK ",pulseLasting,self.pulseWidth
-				time.sleep(pulseLasting-self.pulseWidth*self.pulseDuty)
+			t2 = pi.get_current_tick()
+			x=float(pigpio.tickDiff(t1,t2))/1000000.
+			lasting=pulseLasting-x
+			if lasting >0:
+				time.sleep(lasting)
+
 
 
 
