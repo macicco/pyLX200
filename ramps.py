@@ -25,12 +25,13 @@ class axis(object):
 		self.name=0
 		self.pointError=float(pointError)
 		self.timestepMax=0.1
-		self.timestepMin=0.001
+		self.timestepMin=0.005
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
 		self.a=0
 		self.vmax=float(v)
 		self.beta=0
+		self.PhiBeta=0
 		self.v=0
 		self.beta_target=0
 		self.t2target=0
@@ -46,7 +47,7 @@ class axis(object):
 		self.name=name
 		if self.debug:
 			self.logfile=open(str(self.name)+".log",'w')
-			line="T timestep timesleep vmax beta_target, beta v a steps\n"
+			line="T timestep timesleep vmax beta_target, beta v a PhiBeta steps\n"
 			self.logfile.write(line)
 
 	def say(self):
@@ -114,6 +115,7 @@ class axis(object):
 	def tracktick(self):
 		steps=self.vtracking*self.timestep
 		self.beta=self.beta+steps
+		self.beta_target=self.beta
 		self.v=self.vtracking
 		return steps
 
@@ -188,32 +190,42 @@ class axis(object):
 		return steps
 
 	def doSteps(self,steps):
+		self.PhiBeta=self.PhiBeta+steps
 		#sleep
 		time.sleep(self.timesleep)
 		if self.debug:
-			self.saveDebug(steps)
+			self.saveDebug(steps,self.PhiBeta)
 		
-	def saveDebug(self,steps):
-		line="%g %g %g %g %g %g %g %g %d\n" % (time.time()-self.T0,self.timestep,self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,steps)
+	def saveDebug(self,steps,PhiBeta):
+		line="%g %g %g %g %g %g %g %g %g %d\n" % (time.time()-self.T0,self.timestep, \
+			self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,PhiBeta,steps)
 		self.logfile.write(line)
 
 #Stepper implementation
 class AxisDriver(axis):
-	def __init__(self,a,v,pointError,PIN):
+	def __init__(self,a,v,pointError,PIN,DIR_PIN):
 		super(AxisDriver, self).__init__(a,v,pointError)
 		self.PIN=PIN
+		self.DIR_PIN=DIR_PIN
+		cb1 = pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		self.stepsPerRevolution=200*16*1	#Motor:steps*microsteps*gearbox
 		self.corona=50
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
 		self.pulseWidth=0.001    		#in seconds
+		self.timestepMax=self.pulseWidth*10
+		self.timestepMin=self.pulseWidth*5
 		self.pulseDuty=0.5
-		self.pointError=math.pi*2/self.FullTurnSteps
-		self.vmax=self.pointError/self.pulseWidth
+		self.MinPhiStep=math.pi*2/float(self.FullTurnSteps)
+		self.vmax=self.MinPhiStep/self.pulseWidth
 		self._vmax=self.vmax
+		self.pointError=self.MinPhiStep
 		#self.acceleration=self.vmax/10.
-		print "Min step (point Error)",ephem.degrees(self.pointError) \
+		print "StepsPerRev",self.stepsPerRevolution \
+			,"FullTurnSteps: ",self.FullTurnSteps \
+			,"PPS",1/self.pulseWidth,"Phisical:",self.MinPhiStep
+		print "Min step (point Error)",ephem.degrees(self.MinPhiStep) \
 			,"Max speed: ",ephem.degrees(self._vmax)
 
 
@@ -221,7 +233,7 @@ class AxisDriver(axis):
 	def doSteps(self,delta):
 		#Distribute steps on 
 		#delta is in radians. Calculate actual steps 
-		steps=(self.FullTurnSteps*delta)/(math.pi*2)+self.stepsRest
+		steps=delta/self.MinPhiStep+self.stepsRest
 		Isteps=round(steps)
 
 		#acumultate the fractional part to the next step
@@ -232,6 +244,7 @@ class AxisDriver(axis):
 			dire=-1
 		else:
 			dire=1
+		pi.write(self.DIR_PIN, dire>0)
 
 		Isteps=int(abs(Isteps))
 
@@ -246,7 +259,7 @@ class AxisDriver(axis):
 		#delay the pulses than have not room to the next cycle
 		if pulseLasting-self.pulseWidth <0:
 			Lsteps=int(self.timesleep/self.pulseWidth)
-			self.stepsRest=self.stepsRest+(Isteps-Lsteps)
+			self.stepsRest=self.stepsRest+(Isteps-Lsteps)*dire
 			print self.name,time.time()-self.T0,"\tProcastinating steps. \tORG:" ,Isteps,"\tDOING:",Lsteps,"\tPENDING:",Isteps-Lsteps,
 			Isteps=Lsteps
 			if Isteps==0:
@@ -255,12 +268,13 @@ class AxisDriver(axis):
 				return		
 			else:
 				pulseLasting=self.timesleep/float(Isteps)
-				print "pulse:",pulseLasting,pulseLasting*Isteps
+				print "pulse:",self.timestep,self.timesleep,self.timestep-self.timesleep
 
 
 
 		if self.debug:
-			self.saveDebug(Isteps*dire)
+			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
+			self.saveDebug(Isteps*dire,PhiBeta)
 
 
 		for p in range(Isteps):
@@ -268,7 +282,11 @@ class AxisDriver(axis):
 			t1 = pi.get_current_tick()
 			#Takes to much time!!! TODO: alternate method
 			pi.write(self.PIN, 1)
-			time.sleep(self.pulseWidth*self.pulseDuty)
+			t2 = pi.get_current_tick()
+			x=float(pigpio.tickDiff(t1,t2))/1000000.
+			lasting=self.pulseWidth*self.pulseDuty-x		
+			if lasting >0:
+				time.sleep(lasting)
 			pi.write(self.PIN, 0)
 			t2 = pi.get_current_tick()
 			x=float(pigpio.tickDiff(t1,t2))/1000000.
@@ -276,14 +294,20 @@ class AxisDriver(axis):
 			if lasting >0:
 				time.sleep(lasting)
 
-
+	def stepCounter(self,gpio, level, tick):
+		dire=pi.read(self.DIR_PIN)
+		if dire==1:
+			dire=1
+		else:
+			dire=-1
+		self.PhiBeta=self.PhiBeta+1*dire
 
 
 
 class mount:
 	def __init__(self,a,v,pointError):
-		self.axis1=AxisDriver(a,v,pointError,4)
-		self.axis2=AxisDriver(a,v,pointError,5)
+		self.axis1=AxisDriver(a,v,pointError,4,12)
+		self.axis2=AxisDriver(a,v,pointError,5,13)
 		#self.axis1=axis(a,v,pointError)
 		#self.axis2=axis(a,v,pointError)
 		self.axis1.setName("RA")

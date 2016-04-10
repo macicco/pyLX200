@@ -56,8 +56,8 @@ class lx200conductor():
 		v=ephem.degrees('10:00:00')
 		a=ephem.degrees('05:00:00')
 		self.m=ramps.mount(a,v,self.pointError)
-		vRA=ephem.hours("00:00:01")
-		vDEC=ephem.degrees("00:00:00")
+		vRA=ephem.hours("00:04:01")
+		vDEC=ephem.degrees("01:00:00")
 		self.m.trackSpeed(vRA,vDEC)
 
 		self.i=tle.TLEhandler(self.observer)
@@ -84,6 +84,7 @@ class lx200conductor():
 		
 	@threaded
 	def run(self):
+		#self.go2ISS()
 	  	while self.RUN:
 			time.sleep(0.1)
 			#update 
@@ -111,6 +112,7 @@ class lx200conductor():
 			self.targetDEC=self.iss.dec
 			self.cmd_slew('')
   			return "target#"
+
 
 	def cmd(self,cmd):
                 for c in self.CMDs.keys():
