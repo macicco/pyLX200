@@ -209,7 +209,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		self.stepsPerRevolution=200*16*1	#Motor:steps*microsteps*gearbox
-		self.corona=50
+		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
@@ -378,7 +378,7 @@ if __name__ == '__main__':
 	e=ephem.degrees('00:00:01')
 	m=mount(a,v,e)
 	m.trackSpeed(e,0)
-	RA=ephem.hours('03:00:00')
+	RA=ephem.hours('06:00:00')
 	DEC=ephem.degrees('15:00:00')
 	m.slew(RA,DEC)
 	t=0
