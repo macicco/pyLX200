@@ -227,6 +227,7 @@ class AxisDriver(axis):
 		self.pi.write(self.DIR_PIN, self.dire>0)
 	  	self.pi.set_PWM_dutycycle(self.PIN, 0)
 		self.discarted=0
+		self.discartFlag=False
 		self.lock = threading.Lock()
 		self.stepQueue()
 		#self.acceleration=self.vmax/10.
@@ -277,7 +278,7 @@ class AxisDriver(axis):
 
 		if self.discartFlag:
 			self.discarted=self.discarted+1*dire
-			print ephem.degrees(self.discarted*self.MinPhiStep),self.discarted,self.PhiBeta
+			print ephem.degrees(self.discarted*self.MinPhiStep),self.discarted,self.PhiBeta,abs(self.v)*1.1/self.MinPhiStep
 			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
 			return
 
@@ -288,6 +289,7 @@ class AxisDriver(axis):
 	 	   with self.lock:
 			self.discartFlag=True
 		  	self.pi.set_PWM_dutycycle(self.PIN, 0)
+			self.pi.set_PWM_frequency(self.PIN,0)
 			#self.pi.write(self.PIN, 0)
 			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
 			#print "Stop PWM"
@@ -316,6 +318,13 @@ class AxisDriver(axis):
 		with self.lock:
 		   if abs(self.stepTarget-self.PhiBeta) != 0:
 			self.pi.set_PWM_dutycycle(self.PIN, int(self.pulseDuty*255))
+			freq=abs(self.v)*1/self.MinPhiStep
+			#print freq
+			if freq  <1/self.pulseWidth:
+				self.pi.set_PWM_frequency(self.PIN,freq)
+				print freq,self.pi.get_PWM_frequency(self.PIN)
+			else:
+				self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
 			self.discartFlag=False
 		time.sleep(self.pulseWidth)
 	  print "STEPS QUEUE END"
