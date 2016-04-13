@@ -322,7 +322,7 @@ class AxisDriver(axis):
 			#print freq
 			if freq  <1/self.pulseWidth:
 				self.pi.set_PWM_frequency(self.PIN,freq)
-				print freq,self.pi.get_PWM_frequency(self.PIN)
+				print self.name,freq,self.pi.get_PWM_frequency(self.PIN)
 			else:
 				self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
 			self.discartFlag=False
