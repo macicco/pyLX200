@@ -5,11 +5,9 @@ import time,datetime
 import threading
 import ephem
 
-raspi=True
 
-if raspi:
-	import pigpio
-	pi=pigpio.pi('cronostamper')
+#lock
+
 
 #Decorator to run some functions in threads
 def threaded(fn):
@@ -31,7 +29,6 @@ class axis(object):
 		self.a=0
 		self.vmax=float(v)
 		self.beta=0
-		self.PhiBeta=0
 		self.v=0
 		self.beta_target=0
 		self.t2target=0
@@ -111,6 +108,7 @@ class axis(object):
 			
 			self.doSteps(steps)
 			self.T=now
+			time.sleep(self.timesleep)
 
 	def tracktick(self):
 		steps=self.vtracking*self.timestep
@@ -201,14 +199,16 @@ class axis(object):
 			self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,PhiBeta,steps)
 		self.logfile.write(line)
 
-#Stepper implementation
+#Stepper raspberry implementation
 class AxisDriver(axis):
 	def __init__(self,a,v,pointError,PIN,DIR_PIN):
 		super(AxisDriver, self).__init__(a,v,pointError)
+		import pigpio
+		self.pi=pigpio.pi('cronostamper')
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
-		cb1 = pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
-		self.stepsPerRevolution=200*16*1	#Motor:steps*microsteps*gearbox
+		cb1 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.stepCounter)
+		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
@@ -221,6 +221,14 @@ class AxisDriver(axis):
 		self.vmax=self.MinPhiStep/self.pulseWidth
 		self._vmax=self.vmax
 		self.pointError=self.MinPhiStep
+		self.stepTarget=0
+		self.PhiBeta=0
+		self.dire=1
+		self.pi.write(self.DIR_PIN, self.dire>0)
+	  	self.pi.set_PWM_dutycycle(self.PIN, 0)
+		self.discarted=0
+		self.lock = threading.Lock()
+		self.stepQueue()
 		#self.acceleration=self.vmax/10.
 		print "StepsPerRev",self.stepsPerRevolution \
 			,"FullTurnSteps: ",self.FullTurnSteps \
@@ -239,70 +247,80 @@ class AxisDriver(axis):
 		#acumultate the fractional part to the next step
 		self.stepsRest=steps-Isteps
 
-		#calculate direction of motion
-		if Isteps<0:
-			dire=-1
-		else:
-			dire=1
-		pi.write(self.DIR_PIN, dire>0)
-
-		Isteps=int(abs(Isteps))
-
-		if Isteps==0:
-			pulseLasting=0
-			time.sleep(self.timesleep)
-			return		
-		else:
-			pulseLasting=self.timesleep/float(Isteps)
-
-		#Check if there is enought time to do the pulse and
-		#delay the pulses than have not room to the next cycle
-		if pulseLasting-self.pulseWidth <0:
-			Lsteps=int(self.timesleep/self.pulseWidth)
-			self.stepsRest=self.stepsRest+(Isteps-Lsteps)*dire
-			print self.name,time.time()-self.T0,"\tProcastinating steps. \tORG:" ,Isteps,"\tDOING:",Lsteps,"\tPENDING:",Isteps-Lsteps,
-			Isteps=Lsteps
-			if Isteps==0:
-				pulseLasting=0
-				time.sleep(self.timesleep)
-				return		
-			else:
-				pulseLasting=self.timesleep/float(Isteps)
-				print "pulse:",self.timestep,self.timesleep,self.timestep-self.timesleep
-
-
-
 		if self.debug:
 			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
-			self.saveDebug(Isteps*dire,PhiBeta)
+			self.saveDebug(Isteps,PhiBeta)
 
 
-		for p in range(Isteps):
-		   if raspi:
-			t1 = pi.get_current_tick()
-			#Takes to much time!!! TODO: alternate method
-			pi.write(self.PIN, 1)
-			t2 = pi.get_current_tick()
-			x=float(pigpio.tickDiff(t1,t2))/1000000.
-			lasting=self.pulseWidth*self.pulseDuty-x		
-			if lasting >0:
-				time.sleep(lasting)
-			pi.write(self.PIN, 0)
-			t2 = pi.get_current_tick()
-			x=float(pigpio.tickDiff(t1,t2))/1000000.
-			lasting=pulseLasting-x
-			if lasting >0:
-				time.sleep(lasting)
+		if Isteps==0:
+			time.sleep(self.timesleep)
+			return		
+
+
+		#calculate direction of motion
+		if self.dire*Isteps<0:
+			self.dire=math.copysign(1,Isteps)
+			self.pi.write(self.DIR_PIN, self.dire>0)
+
+
+
+		self.stepTarget=self.stepTarget+Isteps
+
 
 	def stepCounter(self,gpio, level, tick):
-		dire=pi.read(self.DIR_PIN)
+		dire=self.pi.read(self.DIR_PIN)
 		if dire==1:
 			dire=1
 		else:
 			dire=-1
+
+
+		if self.discartFlag:
+			self.discarted=self.discarted+1*dire
+			print ephem.degrees(self.discarted*self.MinPhiStep),self.discarted,self.PhiBeta
+			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
+			return
+
+
 		self.PhiBeta=self.PhiBeta+1*dire
+		#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
+		if abs(self.stepTarget-self.PhiBeta) == 0:
+	 	   with self.lock:
+			self.discartFlag=True
+		  	self.pi.set_PWM_dutycycle(self.PIN, 0)
+			#self.pi.write(self.PIN, 0)
+			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
+			#print "Stop PWM"
 
 
+	@threaded
+	def stepQueueK(self):
+	  #print self.PhiBeta,self.stepTarget
+	  while not self.kill:
+	     with self.lock:
+		if abs(self.stepTarget-self.PhiBeta) != 0:
+		        #print self.name,self.PhiBeta,self.stepTarget
+			self.discartFlag=False
+			self.pi.write(self.PIN, 1)
+			time.sleep(self.pulseWidth*self.pulseDuty)
+			self.pi.write(self.PIN, 0)
+			time.sleep(self.pulseWidth*(1.-self.pulseDuty))
+	  print "STEPS QUEUE END"
+	  time.sleep(0.1)		
+
+
+	@threaded
+	def stepQueue(self):
+	  self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
+ 	  while not self.kill:
+		with self.lock:
+		   if abs(self.stepTarget-self.PhiBeta) != 0:
+			self.pi.set_PWM_dutycycle(self.PIN, int(self.pulseDuty*255))
+			self.discartFlag=False
+		time.sleep(self.pulseWidth)
+	  print "STEPS QUEUE END"
+	  self.pi.set_PWM_dutycycle(self.PIN, 0)
+	  time.sleep(self.pulseWidth)
 
 class mount:
 	def __init__(self,a,v,pointError):
@@ -378,13 +396,13 @@ if __name__ == '__main__':
 	e=ephem.degrees('00:00:01')
 	m=mount(a,v,e)
 	m.trackSpeed(e,0)
-	RA=ephem.hours('06:00:00')
+	RA=ephem.hours('01:00:00')
 	DEC=ephem.degrees('15:00:00')
 	m.slew(RA,DEC)
 	t=0
 	while t<15:
-		t=t+m.axis1.timestep*2
-		time.sleep(m.axis1.timestep*2)
+		t=t+m.axis1.timestep
+		time.sleep(m.axis1.timestep)
 		#m.coords()
 	m.end()
 	exit(0)
