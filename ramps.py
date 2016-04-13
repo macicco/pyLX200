@@ -209,7 +209,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.stepCounter)
 		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
-		self.corona=500
+		self.corona=30
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
@@ -318,11 +318,12 @@ class AxisDriver(axis):
 		with self.lock:
 		   if abs(self.stepTarget-self.PhiBeta) != 0:
 			self.pi.set_PWM_dutycycle(self.PIN, int(self.pulseDuty*255))
-			freq=abs(self.v)*1/self.MinPhiStep
+			freq=round(abs(self.v)*1/self.MinPhiStep)
 			#print freq
 			if freq  <1/self.pulseWidth:
 				self.pi.set_PWM_frequency(self.PIN,freq)
-				print self.name,freq,self.pi.get_PWM_frequency(self.PIN)
+				if freq>self.pi.get_PWM_frequency(self.PIN):
+					print self.name,freq,self.pi.get_PWM_frequency(self.PIN)
 			else:
 				self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
 			self.discartFlag=False
