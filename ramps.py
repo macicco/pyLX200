@@ -209,7 +209,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.stepCounter)
 		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
-		self.corona=30
+		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
@@ -288,8 +288,9 @@ class AxisDriver(axis):
 		if abs(self.stepTarget-self.PhiBeta) == 0:
 	 	   with self.lock:
 			self.discartFlag=True
-		  	self.pi.set_PWM_dutycycle(self.PIN, 0)
-			self.pi.set_PWM_frequency(self.PIN,0)
+			self.pi.hardware_PWM(self.PIN,0,0)
+		  	#self.pi.set_PWM_dutycycle(self.PIN, 0)
+			#self.pi.set_PWM_frequency(self.PIN,0)
 			#self.pi.write(self.PIN, 0)
 			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
 			#print "Stop PWM"
@@ -313,29 +314,39 @@ class AxisDriver(axis):
 
 	@threaded
 	def stepQueue(self):
-	  self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
+	  #self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
  	  while not self.kill:
 		with self.lock:
 		   if abs(self.stepTarget-self.PhiBeta) != 0:
-			self.pi.set_PWM_dutycycle(self.PIN, int(self.pulseDuty*255))
+			#self.pi.set_PWM_dutycycle(self.PIN, int(self.pulseDuty*255))
 			freq=round(abs(self.v)*1/self.MinPhiStep)
 			#print freq
 			if freq  <1/self.pulseWidth:
-				self.pi.set_PWM_frequency(self.PIN,freq)
+				#self.pi.set_PWM_frequency(self.PIN,freq)
+				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
 				if freq>self.pi.get_PWM_frequency(self.PIN):
+					pass
 					print self.name,freq,self.pi.get_PWM_frequency(self.PIN)
 			else:
-				self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
+				#self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
+				self.pi.hardware_PWM(self.PIN,1/self.pulseWidth,self.pulseDuty*1000000)
 			self.discartFlag=False
 		time.sleep(self.pulseWidth)
 	  print "STEPS QUEUE END"
-	  self.pi.set_PWM_dutycycle(self.PIN, 0)
+	  self.pi.hardware_PWM(self.PIN,0,0)
+	  #self.pi.set_PWM_dutycycle(self.PIN, 0)
 	  time.sleep(self.pulseWidth)
+
+	def testFreq(self):
+		for f in range(1000):
+			#self.pi.set_PWM_frequency(self.PIN,f)
+			self.pi.hardware_PWM(self.PIN,f,500000)
+			print f, self.pi.get_PWM_frequency(self.PIN)
 
 class mount:
 	def __init__(self,a,v,pointError):
-		self.axis1=AxisDriver(a,v,pointError,4,12)
-		self.axis2=AxisDriver(a,v,pointError,5,13)
+		self.axis1=AxisDriver(a,v,pointError,12,4)
+		self.axis2=AxisDriver(a,v,pointError,13,5)
 		#self.axis1=axis(a,v,pointError)
 		#self.axis2=axis(a,v,pointError)
 		self.axis1.setName("RA")
@@ -399,12 +410,18 @@ class mount:
 		self.axis2.kill=True
 
 
+
+
+
 if __name__ == '__main__':
 	#m=mount(1,1)
 	a=ephem.degrees('01:00:00')
 	v=ephem.degrees('05:00:00')
 	e=ephem.degrees('00:00:01')
 	m=mount(a,v,e)
+	#m.axis1.testFreq()
+	#m.end()
+	#exit(0)
 	m.trackSpeed(e,0)
 	RA=ephem.hours('01:00:00')
 	DEC=ephem.degrees('15:00:00')
