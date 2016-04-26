@@ -195,7 +195,7 @@ class axis(object):
 			self.saveDebug(steps,self.PhiBeta)
 		
 	def saveDebug(self,steps,PhiBeta):
-		line="%g %g %g %g %g %g %g %g %g %d\n" % (time.time()-self.T0,self.timestep, \
+		line="%g %g %g %g %g %g %g %g %g %g\n" % (time.time()-self.T0,self.timestep, \
 			self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,PhiBeta,steps)
 		self.logfile.write(line)
 
@@ -207,7 +207,8 @@ class AxisDriver(axis):
 		self.pi=pigpio.pi('cronostamper')
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
-		cb1 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.stepCounter)
+		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
+		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
@@ -223,6 +224,7 @@ class AxisDriver(axis):
 		self.pointError=self.MinPhiStep
 		self.stepTarget=0
 		self.PhiBeta=0
+		self.PhiBetaF=0
 		self.dire=1
 		self.pi.write(self.DIR_PIN, self.dire>0)
 	  	self.pi.set_PWM_dutycycle(self.PIN, 0)
@@ -250,7 +252,9 @@ class AxisDriver(axis):
 
 		if self.debug:
 			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
-			self.saveDebug(Isteps,PhiBeta)
+			discarted=float(self.discarted)*self.MinPhiStep
+			self.saveDebug(discarted,PhiBeta)
+			#self.saveDebug(Isteps,PhiBeta)
 
 
 		if Isteps==0:
@@ -263,30 +267,41 @@ class AxisDriver(axis):
 			self.dire=math.copysign(1,Isteps)
 			self.pi.write(self.DIR_PIN, self.dire>0)
 
+		#calculate target steps
+	   	with self.lock:
+			self.stepTarget=self.stepTarget+Isteps
 
-
-		self.stepTarget=self.stepTarget+Isteps
-
-
-	def stepCounter(self,gpio, level, tick):
+	def falling(self,gpio, level, tick):
 		dire=self.pi.read(self.DIR_PIN)
 		if dire==1:
 			dire=1
 		else:
 			dire=-1
 
+		self.PhiBetaF=self.PhiBetaF+1*dire
+		pass
+
+	def stepCounter(self,gpio, level, tick):
+	   with self.lock:
+		dire=self.pi.read(self.DIR_PIN)
+		if dire==1:
+			dire=1
+		else:
+			dire=-1
+
+		self.PhiBeta=self.PhiBeta+1*dire
+
 
 		if self.discartFlag:
 			self.discarted=self.discarted+1*dire
-			print ephem.degrees(self.discarted*self.MinPhiStep),self.discarted,self.PhiBeta,abs(self.v)*1.1/self.MinPhiStep
+			print self.name,self.discarted*self.MinPhiStep,ephem.degrees(self.discarted*self.MinPhiStep),\
+				self.discarted,self.PhiBeta,abs(self.v)*1/self.MinPhiStep
 			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
-			return
+			#return
 
-
-		self.PhiBeta=self.PhiBeta+1*dire
-		#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
-		if abs(self.stepTarget-self.PhiBeta) == 0:
-	 	   with self.lock:
+		#Arrived. Stop PWM
+		if abs(self.stepTarget-self.PhiBeta+self.discarted) == 0:
+			print "Arrive"
 			self.discartFlag=True
 			self.pi.hardware_PWM(self.PIN,0,0)
 		  	#self.pi.set_PWM_dutycycle(self.PIN, 0)
@@ -294,6 +309,8 @@ class AxisDriver(axis):
 			#self.pi.write(self.PIN, 0)
 			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
 			#print "Stop PWM"
+		
+
 
 
 	@threaded
@@ -314,28 +331,19 @@ class AxisDriver(axis):
 
 	@threaded
 	def stepQueue(self):
-	  #self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
  	  while not self.kill:
 		with self.lock:
-		   if abs(self.stepTarget-self.PhiBeta) != 0:
-			#self.pi.set_PWM_dutycycle(self.PIN, int(self.pulseDuty*255))
+		   if abs(self.stepTarget-self.PhiBeta+self.discarted) != 0:
 			freq=round(abs(self.v)*1/self.MinPhiStep)
-			#print freq
 			if freq  <1/self.pulseWidth:
-				#self.pi.set_PWM_frequency(self.PIN,freq)
 				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
-				if freq>self.pi.get_PWM_frequency(self.PIN):
-					pass
-					print self.name,freq,self.pi.get_PWM_frequency(self.PIN)
 			else:
-				#self.pi.set_PWM_frequency(self.PIN,1/self.pulseWidth)
 				self.pi.hardware_PWM(self.PIN,1/self.pulseWidth,self.pulseDuty*1000000)
 			self.discartFlag=False
 		time.sleep(self.pulseWidth)
 	  print "STEPS QUEUE END"
 	  self.pi.hardware_PWM(self.PIN,0,0)
-	  #self.pi.set_PWM_dutycycle(self.PIN, 0)
-	  time.sleep(self.pulseWidth)
+
 
 	def testFreq(self):
 		for f in range(1000):
@@ -427,7 +435,7 @@ if __name__ == '__main__':
 	DEC=ephem.degrees('15:00:00')
 	m.slew(RA,DEC)
 	t=0
-	while t<15:
+	while t<9:
 		t=t+m.axis1.timestep
 		time.sleep(m.axis1.timestep)
 		#m.coords()
