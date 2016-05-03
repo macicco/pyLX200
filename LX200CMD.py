@@ -96,7 +96,7 @@ class lx200conductor():
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
 
-
+			#self.go2ISS()
 
 			#print self.iss.ra,self.iss.dec
 
@@ -106,7 +106,7 @@ class lx200conductor():
 		print "MOTORS STOPPED"
 
 	def go2ISS(self):
-			self.observer.date=ephem.Date(datetime.datetime.utcnow())
+			#self.observer.date=ephem.Date(datetime.datetime.utcnow())
 			self.iss.compute()
 			self.targetRA=self.iss.ra
 			self.targetDEC=self.iss.dec

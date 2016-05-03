@@ -208,7 +208,7 @@ class AxisDriver(axis):
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
-		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
+		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
@@ -253,12 +253,12 @@ class AxisDriver(axis):
 		if self.debug:
 			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
 			discarted=float(self.discarted)*self.MinPhiStep
-			self.saveDebug(discarted,PhiBeta)
-			#self.saveDebug(Isteps,PhiBeta)
+			#self.saveDebug(discarted,PhiBeta)
+			self.saveDebug(Isteps,PhiBeta)
 
 
 		if Isteps==0:
-			time.sleep(self.timesleep)
+			#time.sleep(self.timesleep)
 			return		
 
 
@@ -301,7 +301,7 @@ class AxisDriver(axis):
 
 		#Arrived. Stop PWM
 		if abs(self.stepTarget-self.PhiBeta+self.discarted) == 0:
-			print "Arrive"
+			#print "Arrive"
 			self.discartFlag=True
 			self.pi.hardware_PWM(self.PIN,0,0)
 		  	#self.pi.set_PWM_dutycycle(self.PIN, 0)
@@ -334,11 +334,16 @@ class AxisDriver(axis):
  	  while not self.kill:
 		with self.lock:
 		   if abs(self.stepTarget-self.PhiBeta+self.discarted) != 0:
-			freq=round(abs(self.v)*1/self.MinPhiStep)
-			if freq  <1/self.pulseWidth:
-				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
+			if self.v!=0:
+				freq=round(abs(self.v)*1/self.MinPhiStep)
 			else:
-				self.pi.hardware_PWM(self.PIN,1/self.pulseWidth,self.pulseDuty*1000000)
+				#BAD HACK!!! just in case v=0 but don't phi arrive
+				#print "HACK!"
+				vv=abs(self.stepTarget-self.PhiBeta+self.discarted)
+				freq=round(vv*100)
+			if freq  >=1/self.pulseWidth:
+				freq=1/self.pulseWidth
+			self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
 			self.discartFlag=False
 		time.sleep(self.pulseWidth)
 	  print "STEPS QUEUE END"
@@ -376,6 +381,9 @@ class mount:
 		self.axis1.sync(x)
 		self.axis2.sync(y)
 
+	def slewend(self):
+		retunr self.axis1.slewend && self.axis2.slewend
+
 	def stopSlew(self):
 		self.axis1.slew(self.axis1.beta)
 		self.axis2.slew(self.axis2.beta)
@@ -400,6 +408,7 @@ class mount:
 		deltay=abs(y-self.axis2.beta)
 		self.axis1._vmax=float(self.axis1.vmax)
 		self.axis2._vmax=float(self.axis2.vmax)
+		return
 		if deltax==0 or deltay==0:
 			return		
 		if deltax > deltay:
@@ -431,11 +440,11 @@ if __name__ == '__main__':
 	#m.end()
 	#exit(0)
 	m.trackSpeed(e,0)
-	RA=ephem.hours('01:00:00')
+	RA=ephem.hours('02:00:00')
 	DEC=ephem.degrees('15:00:00')
 	m.slew(RA,DEC)
 	t=0
-	while t<9:
+	while t<15:
 		t=t+m.axis1.timestep
 		time.sleep(m.axis1.timestep)
 		#m.coords()
