@@ -7,6 +7,7 @@ import time
 import catalogues
 import ephem
 import math
+from util import *
 from thread import *
 
 pi=math.pi
@@ -26,17 +27,11 @@ sock.connect(server_address)
 RUN=True
 
 
-def group(lst, n):
-  for i in range(0, len(lst), n):
-    val = lst[i:i+n]
-    if len(val) == n:
-      yield tuple(val)
-
 
 def drawCostellationsFigures(costellations=['Aur']):
 	coords=[]
 	figures=catalogues.CostellationFigures()
-	costellations=set(map(lambda x:x[0],figures))
+	#costellations=set(map(lambda x:x[0],figures))
 	#if True:
 	for costellation in costellations:
 		data=filter(lambda x:x[0]==costellation,figures)[0]		
@@ -45,10 +40,10 @@ def drawCostellationsFigures(costellations=['Aur']):
 			star1=H.search(s[0])
 			star2=H.search(s[1])
 			if star1!=None and star2!=None:
-				costellation_line=((star1[4]*180/pi,star1[5]*180/pi),(star2[4]*180/pi,star2[5]*180/pi))
-				#print costellation_line
-				ra=ephem.degrees(star2[4])
-				dec=ephem.degrees(star2[5])
+				npJ2000=ephem.Equatorial(star2[4],star2[5])
+				np=ephem.Equatorial(npJ2000,epoch='2016.4')
+				ra = np.ra
+				dec =np.dec
 				cmd1=str(ephem.hours(ra))
 				cmd2=str(dec)
 				coords.append([cmd1,cmd2])
@@ -57,12 +52,13 @@ def drawCostellationsFigures(costellations=['Aur']):
 
 while RUN:
  time.sleep(0.1)	
- coords=drawCostellationsFigures()
+ coste=['Cnc','Leo','Vir','Lib',]
+ coords=drawCostellationsFigures(coste)
  try:
     
     # Send data
     messages =[chr(6),':info',':GR',':Sr 01:00:00',':Sd 35:00',':MS'] 
-   
+
     #for msg in messages:	
     for coord in coords:
 
@@ -80,7 +76,7 @@ while RUN:
 	    data = sock.recv(16)
             print >>sys.stderr, 'received "%s"' % data
 	    time.sleep(5)	
-	    sock.sendall(':Q#')
+	    #sock.sendall(':Q#')
 	    sock.sendall(':MS#')
 
 

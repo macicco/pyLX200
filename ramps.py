@@ -15,15 +15,15 @@ def threaded(fn):
         threading.Thread(target=fn, args=args, kwargs=kwargs).start()
     return wrapper
 
-#virtual class. It must be used to derive driver class
-#wich implemente the motor dirver
+#virtual class. It must be used to derive the actual driver class
+#wich implemente the motor driver
 class axis(object):
 	def __init__(self,a,v,pointError):
 		self.debug=True
 		self.name=0
 		self.pointError=float(pointError)
 		self.timestepMax=0.1
-		self.timestepMin=0.005
+		self.timestepMin=0.010
 		self.timestep=self.timestepMax
 		self.acceleration=float(a)
 		self.a=0
@@ -79,6 +79,7 @@ class axis(object):
 		self.beta=b
 
 
+	#Main loop thread
 	@threaded
 	def run(self):
 		self.T=time.time()
@@ -92,8 +93,6 @@ class axis(object):
 					self.timesleep=self.timestepMax
 			else:
 				self.timesleep=self.timestepMax
-
-
 
 			#now calculate the actual timestep
 			now=time.time()
@@ -117,6 +116,8 @@ class axis(object):
 		self.v=self.vtracking
 		return steps
 
+	#NOT IN USE. 
+	#Change speed smoothly 
 	def tracktickSmooth(self):
 		self.vdelta=self.vtracking-self.v
 		sign=math.copysign(1,self.vdelta)
@@ -173,6 +174,9 @@ class axis(object):
 			if abs(self.v)<abs(self._vmax):
 				self.a=self.acceleration*sign
 
+		#Change in direction
+		if sign!=v_sign:
+			self.a=self.acceleration*sign
 
 	   	#check if already at max speed
 		if abs(self.v)>abs(self._vmax):
@@ -183,7 +187,6 @@ class axis(object):
 		self.v=self.v+self.a*self.timestep
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
-		#print self.name,"V,v*timestep,steps",ephem.degrees(self.v),ephem.degrees(self.v*self.timestep),ephem.degrees(steps)
 		return steps
 
 	def doSteps(self,steps):
@@ -208,7 +211,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
-		self.stepsPerRevolution=200*8*24	#Motor:steps*microsteps*gearbox
+		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
@@ -281,7 +284,6 @@ class AxisDriver(axis):
 		pass
 
 	def stepCounter(self,gpio, level, tick):
-	   with self.lock:
 		dire=self.pi.read(self.DIR_PIN)
 		if dire==1:
 			dire=1
@@ -293,12 +295,13 @@ class AxisDriver(axis):
 
 		if self.discartFlag:
 			self.discarted=self.discarted+1*dire
-			print   self.name,self.discarted*self.MinPhiStep,\
+			print   self.name, "DISCARTED", \
 				ephem.degrees(self.discarted*self.MinPhiStep),\
-				self.discarted,self.PhiBeta,abs(self.v)*1/self.MinPhiStep
+				self.discarted
 
 		#Arrived. Stop PWM
-		if abs(self.stepTarget-self.PhiBeta) == 0:
+	   	with self.lock:
+		    if abs(self.stepTarget-self.PhiBeta) == 0:
 			self.discartFlag=True
 			self.pi.hardware_PWM(self.PIN,0,0)
 

@@ -84,8 +84,8 @@ class lx200conductor():
 		
 	@threaded
 	def run(self):
-		self.go2ISS()
-		self.ISSspeed()
+		#self.go2ISS()
+		#self.ISSspeed()
 	  	while self.RUN:
 			time.sleep(0.1)
 			#update 
@@ -97,7 +97,7 @@ class lx200conductor():
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
 
-			self.ISSspeed()
+			#self.ISSspeed()
 
 			#print self.iss.ra,self.iss.dec
 
