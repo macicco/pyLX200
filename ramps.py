@@ -166,7 +166,7 @@ class axis(object):
 
 
 		#check if it is time to deccelerate
-		if abs(self.delta) - self.beta_slope<=0:
+		if abs(self.delta) - self.beta_slope<=0 :
 			self.a=-self.acceleration*sign
 			#print self.name,"Decelerating:",self.a
 		else:
@@ -179,8 +179,7 @@ class axis(object):
 			if sign==v_sign:
 				self.v=self._vmax*v_sign
 				self.a=0
-				#print self.name,"V MAX :",ephem.degrees(self.v),"MAX PATH:",ephem.degrees(self.v*self.timestep)
-
+			
 		self.v=self.v+self.a*self.timestep
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
@@ -209,7 +208,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
-		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
+		self.stepsPerRevolution=200*8*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
@@ -252,9 +251,9 @@ class AxisDriver(axis):
 
 		if self.debug:
 			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
-			discarted=float(self.discarted)*self.MinPhiStep
-			#self.saveDebug(discarted,PhiBeta)
-			self.saveDebug(Isteps,PhiBeta)
+			#discarted=float(self.discarted)*self.MinPhiStep
+			self.saveDebug(self.discarted,PhiBeta)
+			#self.saveDebug(Isteps,PhiBeta)
 
 
 		if Isteps==0:
@@ -294,24 +293,16 @@ class AxisDriver(axis):
 
 		if self.discartFlag:
 			self.discarted=self.discarted+1*dire
-			print self.name,self.discarted*self.MinPhiStep,ephem.degrees(self.discarted*self.MinPhiStep),\
+			print   self.name,self.discarted*self.MinPhiStep,\
+				ephem.degrees(self.discarted*self.MinPhiStep),\
 				self.discarted,self.PhiBeta,abs(self.v)*1/self.MinPhiStep
-			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
-			#return
 
 		#Arrived. Stop PWM
-		if abs(self.stepTarget-self.PhiBeta+self.discarted) == 0:
-			#print "Arrive"
+		if abs(self.stepTarget-self.PhiBeta) == 0:
 			self.discartFlag=True
 			self.pi.hardware_PWM(self.PIN,0,0)
-		  	#self.pi.set_PWM_dutycycle(self.PIN, 0)
-			#self.pi.set_PWM_frequency(self.PIN,0)
-			#self.pi.write(self.PIN, 0)
-			#print self.name,self.PhiBeta,self.stepTarget,abs(self.stepTarget-self.PhiBeta)
-			#print "Stop PWM"
+
 		
-
-
 
 	@threaded
 	def stepQueueK(self):
@@ -333,7 +324,7 @@ class AxisDriver(axis):
 	def stepQueue(self):
  	  while not self.kill:
 		with self.lock:
-		   if abs(self.stepTarget-self.PhiBeta+self.discarted) != 0:
+		   if abs(self.stepTarget-self.PhiBeta) != 0:
 			if self.v!=0:
 				freq=round(abs(self.v)*1/self.MinPhiStep)
 			else:
@@ -344,17 +335,11 @@ class AxisDriver(axis):
 			if freq  >=1/self.pulseWidth:
 				freq=1/self.pulseWidth
 			self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
-			self.discartFlag=False
+		   	self.discartFlag=False
 		time.sleep(self.pulseWidth)
 	  print "STEPS QUEUE END"
 	  self.pi.hardware_PWM(self.PIN,0,0)
 
-
-	def testFreq(self):
-		for f in range(1000):
-			#self.pi.set_PWM_frequency(self.PIN,f)
-			self.pi.hardware_PWM(self.PIN,f,500000)
-			print f, self.pi.get_PWM_frequency(self.PIN)
 
 class mount:
 	def __init__(self,a,v,pointError):
@@ -366,7 +351,6 @@ class mount:
 		self.axis2.setName("DEC")
 		self.T0=time.time()
 		self.run()
-
 
 	def run(self):					
 		self.axis1.run()
@@ -382,7 +366,7 @@ class mount:
 		self.axis2.sync(y)
 
 	def slewend(self):
-		retunr self.axis1.slewend && self.axis2.slewend
+		return (self.axis1.slewend and self.axis2.slewend)
 
 	def stopSlew(self):
 		self.axis1.slew(self.axis1.beta)
@@ -395,13 +379,13 @@ class mount:
 	def trackSpeed(self,vx,vy):
 		self.axis1.vtracking=vx
 		self.axis2.vtracking=vy
-		#print "TRACK SPEED",self.axis1.vtracking,self.axis2.vtracking
 
 	def compose(self,x,y):
 		deltax=x-self.axis1.beta
 		deltay=y-self.axis2.beta
 		angle=math.atan2(y, x)
-		print deltax,deltay,angle
+		module=math.sqr(deltax*deltax+deltay*deltay)
+		return module,angle
 	
 	def setVmax(self,x,y):
 		deltax=abs(x-self.axis1.beta)

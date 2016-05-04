@@ -33,12 +33,12 @@ def group(lst, n):
       yield tuple(val)
 
 
-def drawCostellationsFigures(costellation='Boo'):
+def drawCostellationsFigures(costellations=['Aur']):
 	coords=[]
 	figures=catalogues.CostellationFigures()
 	costellations=set(map(lambda x:x[0],figures))
-	if True:
-	#for costellation in costellations:
+	#if True:
+	for costellation in costellations:
 		data=filter(lambda x:x[0]==costellation,figures)[0]		
 		data=list(group(data[2:],2))
 		for s in data:	
@@ -65,6 +65,7 @@ while RUN:
    
     #for msg in messages:	
     for coord in coords:
+
 	    print coord
 	    r_cmd=':Sr '+coord[0]
 	    print >>sys.stderr, 'sending "%s"' % r_cmd
@@ -79,6 +80,7 @@ while RUN:
 	    data = sock.recv(16)
             print >>sys.stderr, 'received "%s"' % data
 	    time.sleep(5)	
+	    sock.sendall(':Q#')
 	    sock.sendall(':MS#')
 
 

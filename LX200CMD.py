@@ -84,7 +84,8 @@ class lx200conductor():
 		
 	@threaded
 	def run(self):
-		#self.go2ISS()
+		self.go2ISS()
+		self.ISSspeed()
 	  	while self.RUN:
 			time.sleep(0.1)
 			#update 
@@ -96,7 +97,7 @@ class lx200conductor():
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
 
-			#self.go2ISS()
+			self.ISSspeed()
 
 			#print self.iss.ra,self.iss.dec
 
@@ -106,13 +107,28 @@ class lx200conductor():
 		print "MOTORS STOPPED"
 
 	def go2ISS(self):
-			#self.observer.date=ephem.Date(datetime.datetime.utcnow())
-			self.iss.compute()
+			observer=self.observer
+			observer.date=ephem.Date(datetime.datetime.utcnow())
+			self.iss.compute(observer)
 			self.targetRA=self.iss.ra
 			self.targetDEC=self.iss.dec
 			self.cmd_slew('')
   			return "target#"
 
+	def ISSspeed(self):
+			observer=self.observer
+			observer.date=ephem.Date(datetime.datetime.utcnow())
+			self.iss.compute(self.observer)
+			RA0=self.iss.ra
+			DEC0=self.iss.dec
+			observer.date=observer.date+ephem.second
+			self.iss.compute(observer)
+			RA1=self.iss.ra
+			DEC1=self.iss.dec
+			vRA=-(RA1-RA0)
+			vDEC=DEC1-DEC0
+			self.m.trackSpeed(vRA,vDEC)
+  			return "target#"
 
 	def cmd(self,cmd):
                 for c in self.CMDs.keys():
@@ -178,7 +194,7 @@ class lx200conductor():
 		return "target#"
 
 	def cmd_slew(self,arg):
-		ra=self.hourAngle(self.targetRA)	
+		ra=self.hourAngle(self.targetRA)
 		print "slewing to:",ra,self.targetDEC," from:",self.hourAngle(self.RA),self.DEC
 		self.m.slew(ra,self.targetDEC)
 		#return values 0==OK, 1 == below Horizon
@@ -187,10 +203,10 @@ class lx200conductor():
 	def hourAngle(self,ra):
 		self.observer.date=ephem.now()
 		sideral=self.observer.sidereal_time()
-		ra=ephem.hours(sideral-ra).znorm
-		if ra==ephem.hours("24:00:00"):
+		ra_=ephem.hours(sideral-ra).znorm
+		if ra_==ephem.hours("24:00:00"):
 			ra=ephem.hours("00:00:00")
-		return ra		
+		return ra_		
 
 	def cmd_stopSlew(self,arg):
 		self.m.stopSlew()
