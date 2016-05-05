@@ -256,8 +256,8 @@ class AxisDriver(axis):
 		if self.debug:
 			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
 			#discarted=float(self.discarted)*self.MinPhiStep
-			#self.saveDebug(self.discarted,PhiBeta)
-			self.saveDebug(self.freq*self.dire,PhiBeta)
+			self.saveDebug(self.discarted,PhiBeta)
+			#self.saveDebug(self.freq*self.dire,PhiBeta)
 
 		if Isteps==0:
 			return		
@@ -282,6 +282,7 @@ class AxisDriver(axis):
 		pass
 
 	def stepCounter(self,gpio, level, tick):
+     	    with self.lock:
 		dire=self.pi.read(self.DIR_PIN)
 		if dire==1:
 			dire=1
@@ -298,8 +299,7 @@ class AxisDriver(axis):
 				self.discarted
 
 		#Arrived. Stop PWM
-	   	with self.lock:
-		    if abs(self.stepTarget-self.PhiBeta) == 0:
+	    	if abs(self.stepTarget-self.PhiBeta) == 0:
 			self.freq=0
 			self.discartFlag=True
 			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)

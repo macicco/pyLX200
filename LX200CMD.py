@@ -96,9 +96,8 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
-
+			#self.go2ISS()
 			#self.ISSspeed()
-
 			#print self.iss.ra,self.iss.dec
 
 			#print self.RA,self.DEC

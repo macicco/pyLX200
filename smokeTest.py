@@ -52,7 +52,7 @@ def drawCostellationsFigures(costellations=['Aur']):
 
 while RUN:
  time.sleep(0.1)	
- coste=['Cnc','Leo','Vir','Lib',]
+ coste=['Tau','Gem','Cnc','Leo','Vir','Lib',]
  coords=drawCostellationsFigures(coste)
  try:
     
