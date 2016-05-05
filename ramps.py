@@ -211,7 +211,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
-		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
+		self.stepsPerRevolution=200*32*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
@@ -230,6 +230,7 @@ class AxisDriver(axis):
 		self.dire=1
 		self.pi.write(self.DIR_PIN, self.dire>0)
 	  	self.pi.set_PWM_dutycycle(self.PIN, 0)
+		self.freq=0
 		self.discarted=0
 		self.discartFlag=False
 		self.lock = threading.Lock()
@@ -255,14 +256,11 @@ class AxisDriver(axis):
 		if self.debug:
 			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
 			#discarted=float(self.discarted)*self.MinPhiStep
-			self.saveDebug(self.discarted,PhiBeta)
-			#self.saveDebug(Isteps,PhiBeta)
-
+			#self.saveDebug(self.discarted,PhiBeta)
+			self.saveDebug(self.freq*self.dire,PhiBeta)
 
 		if Isteps==0:
-			#time.sleep(self.timesleep)
 			return		
-
 
 		#calculate direction of motion
 		if self.dire*Isteps<0:
@@ -302,43 +300,39 @@ class AxisDriver(axis):
 		#Arrived. Stop PWM
 	   	with self.lock:
 		    if abs(self.stepTarget-self.PhiBeta) == 0:
+			self.freq=0
 			self.discartFlag=True
-			self.pi.hardware_PWM(self.PIN,0,0)
+			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
 
 		
-
-	@threaded
-	def stepQueueK(self):
-	  #print self.PhiBeta,self.stepTarget
-	  while not self.kill:
-	     with self.lock:
-		if abs(self.stepTarget-self.PhiBeta) != 0:
-		        #print self.name,self.PhiBeta,self.stepTarget
-			self.discartFlag=False
-			self.pi.write(self.PIN, 1)
-			time.sleep(self.pulseWidth*self.pulseDuty)
-			self.pi.write(self.PIN, 0)
-			time.sleep(self.pulseWidth*(1.-self.pulseDuty))
-	  print "STEPS QUEUE END"
-	  time.sleep(0.1)		
 
 
 	@threaded
 	def stepQueue(self):
  	  while not self.kill:
 		with self.lock:
-		   if abs(self.stepTarget-self.PhiBeta) != 0:
+		   delta=self.stepTarget-self.PhiBeta
+		   if abs(delta) != 0:
+			#calculate direction of motion
+			if self.dire*delta<0:
+				self.dire=math.copysign(1,delta)
+				self.pi.write(self.DIR_PIN, self.dire>0)
+
 			if self.v!=0:
 				freq=round(abs(self.v)*1/self.MinPhiStep)
 			else:
-				#BAD HACK!!! just in case v=0 but don't phi arrive
-				#print "HACK!"
-				vv=abs(self.stepTarget-self.PhiBeta+self.discarted)
-				freq=round(vv*100)
+				pass
+				#if self.v==0 hold the last freq value
 			if freq  >=1/self.pulseWidth:
 				freq=1/self.pulseWidth
-			self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
+			self.freq=freq
+			self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
 		   	self.discartFlag=False
+		   else:
+			self.freq=0
+			self.discartFlag=True
+			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
+
 		time.sleep(self.pulseWidth)
 	  print "STEPS QUEUE END"
 	  self.pi.hardware_PWM(self.PIN,0,0)
@@ -447,27 +441,6 @@ if __name__ == '__main__':
 		#print RA_axis.beta,RA_axis.v,RA_axis.a,x
 	RA_axis.kill=True
 
-	'''
-	RA_axis.track(-0.3)
-	time.sleep(2)
-	RA_axis.slew(1.4)
-	time.sleep(4)
-	RA_axis.slew(-1.3)
-	time.sleep(3)
-	RA_axis.slew(1.2)
-	time.sleep(4)
-	RA_axis.slew(.2)
-	time.sleep(3)
-	RA_axis.slew(-1.2)
-	time.sleep(3)
-	RA_axis.track(0.3)
-	time.sleep(2)
-	RA_axis.track(0.4)
-	time.sleep(2)
-	RA_axis.track(0.5)
-	time.sleep(2)
-	RA_axis.track(0.)
-	time.sleep(2)
-	'''
+
 
 
