@@ -1,0 +1,148 @@
+<HTML>
+<HEAD>
+<TITLE>CronoStamper Main Page</TITLE>
+ 
+
+
+<script type="text/javascript" src= "{{ url_for('static',filename='jquery-2.2.0.min.js') }}"></script>
+<link rel="stylesheet" href= "{{ url_for('static',filename='style.css') }}" type="text/css"/>	
+<script type="text/javascript" src="{{ url_for('static',filename='jquery.jqplot.min.js') }}"</script>
+<script type="text/javascript" src="{{ url_for('static',filename='jqplot.dateAxisRenderer.min.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static',filename='jquery.jqplot.min.css') }}" type="text/css" />
+<script>
+var plot1;
+var plot2;
+var plot_gps;
+var options;
+var t = 1000;
+var x = (new Date()).getTime(); // current time
+var n = 60;
+
+var primera=true;
+data_pllOffset = []
+data_ClkError = []
+data_gps = []
+
+function renorm(darray) {
+var x0=0;
+var y0=0;
+var e=0;
+for(var i = 0; i < darray.length; i ++)
+{
+  x0 = x0 + darray[i][0];
+  y0 = y0 + darray[i][1];  
+  e=e+1;
+}
+x0=x0/e;
+y0=y0/e;
+var newdarray =  darray.map(function(value,index) { return [value[0]-x0,value[1]-y0]; });
+return newdarray;    
+}
+
+function updateValues() {
+ $.ajax({
+    // the URL for the request
+    url: "/values.json",
+ 
+    // the data to send (will be converted to a query string)
+    data: {
+
+    },
+	 
+    // whether this is a POST or GET request
+    type: "GET",
+ 
+    // the type of data we expect back
+    dataType : "json",
+ 
+    // code to run if the request succeeds;
+    // the response is passed to the function
+    success: function( data ) {	
+	$('#time').text(data.time);
+	$('#LST').text(data.LST);
+	$('#RA').text(data.RA);
+	$('#DEC').text(data.DEC);
+	$('#targetRA').text(data.targetRA);
+	$('#targetDEC').text(data.targetDEC);
+	$('#speedRA').text(data.speedRA);
+	$('#speedDEC').text(data.speedDEC);
+	$('#trackingSpeedRA').text(data.trackingSpeedRA);
+	$('#trackingSpeedDEC').text(data.trackingSpeedDEC);
+    },
+ 
+    // code to run if the request fails; the raw request and
+    // status codes are passed to the function
+    error: function( xhr, status ) {
+        //alert( "Sorry, there was a problem!" );
+    },
+ 
+    // code to run regardless of success or failure
+    complete: function( xhr, status ) {
+ 
+    }
+    });
+
+    };
+
+function updater() {
+			updateValues();
+                   };
+
+$(document).ready(function() {
+      var x = (new Date()).getTime();
+      setInterval(updater, 100);
+});
+
+</script>
+ 
+</HEAD>
+<BODY>
+    <div align="center">
+        <p>
+           <a href='https://github.com/nachoplus/pyLX200'>Arrow</a> by N+
+        <hr>
+	<h1 >{{ camera.name }}</h1>
+    </div>
+
+<table class='container'>
+<td>
+<table align='center' class='ShutterTime'>
+<tr><td colspan="2">
+MAIN VALUES
+</td>
+<tr><td >Time</td><td>
+    <div id="time" align="right"></div>
+</td></tr>
+<tr><td >LST</td><td>
+    <div id="LST" align="right"></div>
+</td></tr>
+<tr><td>RA</td><td>
+    <div id="RA" align="right"></div>
+</td></tr>
+<tr><td>DEC</td><td>
+    <div id="DEC" align="right"></div>
+</td></tr>
+<tr><td>Target RA</td><td>
+    <div id="targetRA" align="right"></div>
+</td></tr>
+<tr><td>Target DEC</td><td>
+    <div id="targetDEC" align="right"></div>
+</td></tr>
+<tr><td>RA speed</td><td>
+    <div id="speedRA" align="right"></div>
+</td></tr>
+<tr><td>DEC speed</td><td>
+    <div id="speedDEC" align="right"></div>
+</td></tr>
+<tr><td>RA tracking speed</td><td>
+    <div id="trackingSpeedRA" align="right"></div>
+</td></tr>
+<tr><td>DEC tracking speed</td><td>
+    <div id="trackingSpeedDEC" align="right"></div>
+</td></tr>
+</table>
+</td>
+</table>
+
+</BODY>
+</HTML>

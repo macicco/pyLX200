@@ -9,13 +9,16 @@ import threading
 import ramps
 import tle
 import math
+import zmq
+from config import *
+
 
 def threaded(fn):
     def wrapper(*args, **kwargs):
         threading.Thread(target=fn, args=args, kwargs=kwargs).start()
     return wrapper
 
-class lx200conductor():
+class commands():
 	def __init__(self):
 		print "Conductor create"
 		self.CMDs={ 
@@ -54,7 +57,7 @@ class lx200conductor():
 		self.setObserver()
 		self.pulseStep=ephem.degrees('00:00:01')
 		v=ephem.degrees('10:00:00')
-		a=ephem.degrees('05:00:00')
+		a=ephem.degrees('00:20:00')
 		self.m=ramps.mount(a,v,self.pointError)
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
@@ -63,7 +66,35 @@ class lx200conductor():
 		self.i=tle.TLEhandler(self.observer)
 		self.iss=self.i.ISS()
 
-		self.run()	
+		self.zmqcontext = zmq.Context()
+
+		self.socketStream = self.zmqcontext.socket(zmq.PUB)
+		self.socketStream.bind("tcp://*:%s" % zmqStreamPort)
+
+		self.zmqQueue()
+
+
+	#this thread is responsible for all the 
+	#external CMD
+	@threaded
+	def zmqQueue(self):
+	    socketCmd = self.zmqcontext.socket(zmq.REP)
+	    socketCmd.bind("tcp://*:%s" % zmqCmdPort)
+	    while self.RUN:
+		try:
+	    		message = socketCmd.recv()
+		except:
+			print "Clossing ZMQ queue"
+			socketCmd.close()
+			return
+		print("Received request: %s" % message)
+
+		#  Do some 'work'
+		reply=self.cmd(message)
+
+		#  Send reply back to client
+    		socketCmd.send(str(reply))
+		
 
 	def setObserver(self):
 		here = ephem.Observer()
@@ -77,12 +108,14 @@ class lx200conductor():
 		self.observer=here
 
     	def end(self):
-        	print "conductor ending.."
+        	print "Ending.."
 		self.RUN=False
 		self.m.end()
+		self.zmqcontext.term()
+
 
 		
-	@threaded
+
 	def run(self):
 		#self.go2ISS()
 		#self.ISSspeed()
@@ -96,6 +129,14 @@ class lx200conductor():
 				ra=ephem.hours("00:00:00")
 			self.RA=ra
 			self.DEC=ephem.degrees(self.m.axis2.beta)
+			msg = {'time':str(self.observer.date),'LST':str(sideral),\
+				'RA':str(self.RA),'DEC':str(self.DEC),\
+				'targetRA':str(self.targetRA),'targetDEC':str(self.targetDEC),\
+				'speedRA':str(self.m.axis1.v),'speedDEC':str(self.m.axis2.v),\
+				'trackingSpeedRA':str(self.m.axis1.vtracking),'trackingSpeedDEC':str(self.m.axis2.vtracking)\
+				}
+			self.socketStream.send(mogrify('values',msg))
+
 			#self.go2ISS()
 			#self.ISSspeed()
 			#print self.iss.ra,self.iss.dec
@@ -213,7 +254,7 @@ class lx200conductor():
 
 	def track(self):
 		vRA=ephem.hours("00:00:01")
-		vDEC=ephem.degrees("00:00:15")
+		vDEC=ephem.degrees("00:00:00")
 		self.m.track(vRA,vDEC)
 		return
 		
@@ -272,42 +313,16 @@ class lx200conductor():
 	def cmd_slewRate(self,arg):
 		return 1
 
+
+
+
 if __name__ == '__main__':
-	c=lx200conductor()
-	c.cmd(':CM')
-	c.cmd(':info')
-
-'''
-  		":GVN": self.cmd_firware_number,  \
-  		":GVP": self.cmd_firware_product,  \
-  		":GVT": self.cmd_firware_time,  \
-
-  		":GM": self.cmd_getSite1Name,  \
-  		":Sa": self.cmd_dummy,  \
-  		":Sz": self.cmd_dummy,  \
-
-  		":Sg": self.cmd_setSiteLongitude,  \
-  		":St": self.cmd_setSiteLatitude,  \
-  		":SL": self.cmd_setLocalTime,  \
-  		":SC": self.cmd_setLocalDate,  \
-  		":SG": self.cmd_dummy,  \
-  		":GA": self.cmd_dummy,  \
-  		":GZ": self.cmd_dummy,  \
+  	m=commands()
+	#m.run()
+	try:
+		m.run()
+	except:
+		m.end()
 
 
 
-  		":Gg": self.cmd_getSiteLongitude,  \
-  		":Gt": self.cmd_getSiteLatitude,  \
-  		":Gc": self.cmd_getClockFormat,  \
-
-
-  		":GG": self.cmd_dummy,  \
-  		":MA": self.cmd_dummy,  \
-  		":Me": self.cmd_dummy,  \
-  		":Mn": self.cmd_dummy,  \
-  		":Ms": self.cmd_dummy,  \
-  		":Mw": self.cmd_dummy,  \
-  		":MS": self.cmd_slew,  \
-  		":Q": self.cmd_abortMotion,  \
-
-'''
