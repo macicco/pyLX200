@@ -34,6 +34,7 @@ def drawCostellationsFigures(costellations=['Aur']):
 	#costellations=set(map(lambda x:x[0],figures))
 	#if True:
 	for costellation in costellations:
+		print costellation
 		data=filter(lambda x:x[0]==costellation,figures)[0]		
 		data=list(group(data[2:],2))
 		for s in data:	
@@ -52,7 +53,7 @@ def drawCostellationsFigures(costellations=['Aur']):
 
 while RUN:
  time.sleep(0.1)	
- coste=['Tau','Gem','Cnc','Leo','Vir','Lib',]
+ coste=['Tau','Gem','Cnc','Leo','Vir','Lib','Sco','Sgr','Cap','Aqr','Psc','Ari']
  coords=drawCostellationsFigures(coste)
  try:
     
@@ -60,8 +61,8 @@ while RUN:
     messages =[chr(6),':info',':GR',':Sr 01:00:00',':Sd 35:00',':MS'] 
 
     #for msg in messages:	
-    for coord in coords:
-
+    while True:
+       for coord in coords:
 	    print coord
 	    r_cmd=':Sr '+coord[0]
 	    print >>sys.stderr, 'sending "%s"' % r_cmd
@@ -75,10 +76,10 @@ while RUN:
 	    time.sleep(0.1)	
 	    data = sock.recv(16)
             print >>sys.stderr, 'received "%s"' % data
-	    time.sleep(5)	
+
 	    #sock.sendall(':Q#')
 	    sock.sendall(':MS#')
-
+	    time.sleep(5)	
 
  finally:
     print >>sys.stderr, 'closing socket'

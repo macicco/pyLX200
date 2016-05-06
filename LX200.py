@@ -1,9 +1,7 @@
 #!/usr/bin/python
 '''
 LX200 command set
-
 socat TCP:localhost:6666,reuseaddr pty,link=/tmp/lx200
-https://github.com/peterjc/longsight/blob/master/telescope_server.py
 '''
 
 import socket
@@ -11,8 +9,11 @@ import sys
 import select
 import time
 from thread import *
+import zmq
+from config import *
 
-import LX200CMD
+
+context = zmq.Context()
 
  
 HOST = ''   # Symbolic name meaning all available interfaces
@@ -35,8 +36,6 @@ print 'Socket bind complete'
 s.listen(1)
 print 'Socket now listening'
  
-#Start LX200 master
-conductor=LX200CMD.lx200conductor()
 
 
 #End='something useable as an end marker'
@@ -74,17 +73,19 @@ def recv_end(conn):
 #Function for handling connections. This will be used to create threads
 def clientthread(conn):
     RUN=True
+    #  Socket to talk to ZMQserver
+    zmqSocket = context.socket(zmq.REQ)
+    zmqSocket.connect("tcp://localhost:%s" % zmqCmdPort)
 
-    #Sending message to connected client
-    #conn.send('LX200 mount controler:OK\n') #send only takes string
-     
+   
     #infinite loop so that function do not terminate and thread do not end.
     while RUN:
 	    	cmd=recv_end(conn)
 		if cmd == "SOCKET_CLOSE":
 			break
 		#print "<-",cmd
-		reply=conductor.cmd(cmd)
+		zmqSocket.send(cmd)
+		reply=zmqSocket.recv()
 		#print "->",reply
     		conn.send(str(reply))
 
@@ -109,6 +110,6 @@ while RUN:
     RUN=False
 	
 s.close()
-conductor.end()
+
 
 

@@ -6,8 +6,6 @@ import threading
 import ephem
 
 
-#lock
-
 
 #Decorator to run some functions in threads
 def threaded(fn):
@@ -16,11 +14,11 @@ def threaded(fn):
     return wrapper
 
 #virtual class. It must be used to derive the actual driver class
-#wich implemente the motor driver
+#which implemente the motor driver
 class axis(object):
 	def __init__(self,a,v,pointError):
 		self.debug=True
-		self.name=0
+		self.name='Undefined'
 		self.pointError=float(pointError)
 		self.timestepMax=0.1
 		self.timestepMin=0.010
@@ -57,11 +55,8 @@ class axis(object):
 
 	def slew(self,beta,blocking=False):
 		self.tracking=False
-		#print "TRACKING END"
-		#print "SLEW START"
 		self.slewend=False
 		self.beta_target=beta
-		#self.v=self.vtracking
 		if not blocking:
 			return
 	        while not self.slewend:
@@ -70,13 +65,13 @@ class axis(object):
 	def track(self,v):
 		#print "TRACKING START"
 		self.tracking=True
-		self.vtracking=v
+		self.vtracking=ephem.degrees(v)
 
 
 
 	def sync(self,b):
-		self.beta_target=b
-		self.beta=b
+		self.beta_target=ephem.degrees(b)
+		self.beta=ephem.degrees(b)
 
 
 	#Main loop thread
@@ -184,7 +179,7 @@ class axis(object):
 				self.v=self._vmax*v_sign
 				self.a=0
 			
-		self.v=self.v+self.a*self.timestep
+		self.v=ephem.degrees(self.v+self.a*self.timestep)
 		steps=self.v*self.timestep+self.a*(self.timestep*self.timestep)/2
 		self.beta=self.beta+steps
 		return steps
@@ -210,7 +205,7 @@ class AxisDriver(axis):
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
-		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
+		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 		self.stepsPerRevolution=200*32*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
@@ -272,14 +267,8 @@ class AxisDriver(axis):
 			self.stepTarget=self.stepTarget+Isteps
 
 	def falling(self,gpio, level, tick):
-		dire=self.pi.read(self.DIR_PIN)
-		if dire==1:
-			dire=1
-		else:
-			dire=-1
-
-		self.PhiBetaF=self.PhiBetaF+1*dire
-		pass
+		if self.discartFlag:
+			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
 
 	def stepCounter(self,gpio, level, tick):
      	    with self.lock:
@@ -302,13 +291,14 @@ class AxisDriver(axis):
 	    	if abs(self.stepTarget-self.PhiBeta) == 0:
 			self.freq=0
 			self.discartFlag=True
-			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
+
 
 		
 
 
 	@threaded
 	def stepQueue(self):
+	  freq=0	
  	  while not self.kill:
 		with self.lock:
 		   delta=self.stepTarget-self.PhiBeta
@@ -346,7 +336,6 @@ class mount:
 		#self.axis2=axis(a,v,pointError)
 		self.axis1.setName("RA")
 		self.axis2.setName("DEC")
-		self.T0=time.time()
 		self.run()
 
 	def run(self):					
@@ -374,8 +363,8 @@ class mount:
 		self.axis2.track(vy)
 
 	def trackSpeed(self,vx,vy):
-		self.axis1.vtracking=vx
-		self.axis2.vtracking=vy
+		self.axis1.vtracking=ephem.degrees(vx)
+		self.axis2.vtracking=ephem.degrees(vy)
 
 	def compose(self,x,y):
 		deltax=x-self.axis1.beta
