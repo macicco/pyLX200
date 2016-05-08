@@ -1,6 +1,6 @@
 <HTML>
 <HEAD>
-<TITLE>CronoStamper Main Page</TITLE>
+<TITLE>Arrow Main Page</TITLE>
  
 
 
@@ -68,6 +68,8 @@ function updateValues() {
 	$('#speedDEC').text(data.speedDEC);
 	$('#trackingSpeedRA').text(data.trackingSpeedRA);
 	$('#trackingSpeedDEC').text(data.trackingSpeedDEC);
+	$('#slewendRA').text(data.slewendRA);
+	$('#slewendDEC').text(data.slewendDEC);
     },
  
     // code to run if the request fails; the raw request and
@@ -103,42 +105,65 @@ $(document).ready(function() {
         <hr>
 	<h1 >{{ camera.name }}</h1>
     </div>
-
-<table class='container'>
-<td>
-<table align='center' class='ShutterTime'>
-<tr><td colspan="2">
-MAIN VALUES
-</td>
+<table  >
 <tr><td >Time</td><td>
     <div id="time" align="right"></div>
 </td></tr>
 <tr><td >LST</td><td>
     <div id="LST" align="right"></div>
 </td></tr>
+</table>
+<table class='container'>
+<td>
+<table align='center' class='ShutterTime'>
+<tr><td>
+Axis
+</td>
+<td>
+Position
+</td>
+<td>
+Target
+</td>
+<td>
+Speed
+</td>
+<td>
+Track Speed
+</td>
+<td>
+Tracking
+</td>
+</td>
 <tr><td>RA</td><td>
     <div id="RA" align="right"></div>
+</td>
+<td>
+    <div id="targetRA" align="right"></div>
+</td>
+<td>
+    <div id="speedRA" align="right"></div>
+</td>
+<td>
+    <div id="trackingSpeedRA" align="right"></div>
+</td>
+<td>
+    <div id="slewendRA" align="right"></div>
 </td></tr>
 <tr><td>DEC</td><td>
     <div id="DEC" align="right"></div>
-</td></tr>
-<tr><td>Target RA</td><td>
-    <div id="targetRA" align="right"></div>
-</td></tr>
-<tr><td>Target DEC</td><td>
+</td>
+<td>
     <div id="targetDEC" align="right"></div>
-</td></tr>
-<tr><td>RA speed</td><td>
-    <div id="speedRA" align="right"></div>
-</td></tr>
-<tr><td>DEC speed</td><td>
+</td>
+<td>
     <div id="speedDEC" align="right"></div>
-</td></tr>
-<tr><td>RA tracking speed</td><td>
-    <div id="trackingSpeedRA" align="right"></div>
-</td></tr>
-<tr><td>DEC tracking speed</td><td>
+</td>
+<td>
     <div id="trackingSpeedDEC" align="right"></div>
+</td>
+<td>
+    <div id="slewendDEC" align="right"></div>
 </td></tr>
 </table>
 </td>

@@ -10,6 +10,7 @@ import ramps
 import tle
 import math
 import zmq
+import json
 from config import *
 
 
@@ -45,26 +46,21 @@ class commands():
   		":Mw": self.cmd_pulseW,  \
   		":Mn": self.cmd_pulseN,  \
   		":Ms": self.cmd_pulseS,  \
-  		":CM": self.cmd_align2target
+  		":CM": self.cmd_align2target,  \
+  		"@getObserver": self.getObserver
 		}
 		self.targetRA=0		
 		self.targetDEC=0
-		self.pointError=ephem.degrees('00:00:01')	
 		self.RA=0		
 		self.DEC=0
 		self.RUN=True
-		self.slewing=False
-		self.setObserver()
+		self.observerInit()
 		self.pulseStep=ephem.degrees('00:00:01')
-		v=ephem.degrees('10:00:00')
 		a=ephem.degrees('00:20:00')
-		self.m=ramps.mount(a,v,self.pointError)
+		self.m=ramps.mount(a)
 		vRA=ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
-
-		self.i=tle.TLEhandler(self.observer)
-		self.iss=self.i.ISS()
 
 		self.zmqcontext = zmq.Context()
 
@@ -94,18 +90,21 @@ class commands():
 
 		#  Send reply back to client
     		socketCmd.send(str(reply))
-		
 
-	def setObserver(self):
-		here = ephem.Observer()
-		here.lat="40.440154"
-		here.lon="-3.668747"
-		print "COORD:", here.lat,here.lon
-		here.horizon="00:00:00"
-		here.elev = 700
-		here.temp = 25e0
-		here.compute_pressure()
-		self.observer=here
+	def observerInit(self):
+		self.observer=ephem.Observer()
+		self.observer.lat=here['lat']
+		self.observer.lon=here['lon']
+		self.observer.horizon=here['horizon']
+		self.observer.elev=here['elev']
+		self.observer.temp=here['temp']
+		self.observer.compute_pressure()
+
+	def getObserver(self,arg):
+		observer = {'lat':self.observer.lat,'lon':self.observer.lon,\
+				'horizon':self.observer.horizon,\
+				'elev':self.observer.elev,'temp':self.observer.temp}
+		return json.dumps(observer)
 
     	def end(self):
         	print "Ending.."
@@ -133,7 +132,8 @@ class commands():
 				'RA':str(self.RA),'DEC':str(self.DEC),\
 				'targetRA':str(self.targetRA),'targetDEC':str(self.targetDEC),\
 				'speedRA':str(self.m.axis1.v),'speedDEC':str(self.m.axis2.v),\
-				'trackingSpeedRA':str(self.m.axis1.vtracking),'trackingSpeedDEC':str(self.m.axis2.vtracking)\
+				'trackingSpeedRA':str(self.m.axis1.vtracking),'trackingSpeedDEC':str(self.m.axis2.vtracking),\
+				'slewendRA':str(self.m.axis1.slewend),'slewendDEC':str(self.m.axis2.slewend)\
 				}
 			self.socketStream.send(mogrify('values',msg))
 

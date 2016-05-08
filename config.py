@@ -9,7 +9,15 @@ gear['microstep']=32
 gear['corona']=500
 gear['pinion']=500
 
+here={}
+here['lat']="40.440154"
+here['lon']="-3.668747"
+here['horizon']=10
+here['elev']=700
+here['temp']=25e0
+
 camera="KK"
+
 
 zmqStreamPort = 5556
 zmqCmdPort = 5557

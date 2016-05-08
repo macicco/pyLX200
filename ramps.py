@@ -16,25 +16,24 @@ def threaded(fn):
 #virtual class. It must be used to derive the actual driver class
 #which implemente the motor driver
 class axis(object):
-	def __init__(self,a,v,pointError):
+	def __init__(self,name,a):
 		self.debug=True
-		self.name='Undefined'
-		self.pointError=float(pointError)
-		self.timestepMax=0.1
-		self.timestepMin=0.010
+		self.setName(name)
+		self.pointError=ephem.degrees(0)
+		self.timestepMax=0
+		self.timestepMin=0
 		self.timestep=self.timestepMax
-		self.acceleration=float(a)
-		self.a=0
-		self.vmax=float(v)
-		self.beta=0
-		self.v=0
-		self.beta_target=0
+		self.acceleration=ephem.degrees(a)
+		self.a=ephem.degrees(0)
+		self.v=ephem.degrees(0)
+		self.vmax=ephem.degrees(self.v)
+		self.beta=ephem.degrees(0)
+		self.beta_target=ephem.degrees(0)
 		self.t2target=0
-		self._vmax=v
-		self.tracking=False
+		self._vmax=self.v
 		self.vtracking=0
 		self.slewend=False
-		self.kill=False
+		self.RUN=True
 		self.T0=time.time()
 		#self.say()
 
@@ -42,7 +41,7 @@ class axis(object):
 		self.name=name
 		if self.debug:
 			self.logfile=open(str(self.name)+".log",'w')
-			line="T timestep timesleep vmax beta_target, beta v a PhiBeta steps\n"
+			line="T timestep timesleep vmax beta_target, beta v a motorBeta steps\n"
 			self.logfile.write(line)
 
 	def say(self):
@@ -54,17 +53,18 @@ class axis(object):
 
 
 	def slew(self,beta,blocking=False):
-		self.tracking=False
+
 		self.slewend=False
-		self.beta_target=beta
+		self.beta_target=ephem.degrees(beta)
 		if not blocking:
 			return
 	        while not self.slewend:
 			time.sleep(1)
 
 	def track(self,v):
+		#not needed now. If not slewing is tracking
+		return
 		#print "TRACKING START"
-		self.tracking=True
 		self.vtracking=ephem.degrees(v)
 
 
@@ -78,7 +78,7 @@ class axis(object):
 	@threaded
 	def run(self):
 		self.T=time.time()
-		while not self.kill:
+		while  self.RUN:
 			#estimate the timestep based on the error point
 			if self.v !=0:
 				self.timesleep=abs(float(self.pointError)/(self.v))
@@ -95,7 +95,7 @@ class axis(object):
 
 			#print self.name,self.timestep,deltaT,self.v
 			self.timestep=deltaT
-			if self.tracking:
+			if self.slewend:
 				steps=self.tracktick()
 			else:
 				steps=self.slewtick()
@@ -185,28 +185,28 @@ class axis(object):
 		return steps
 
 	def doSteps(self,steps):
-		self.PhiBeta=self.PhiBeta+steps
+		self.motorBeta=self.motorBeta+steps
 		#sleep
 		time.sleep(self.timesleep)
 		if self.debug:
-			self.saveDebug(steps,self.PhiBeta)
+			self.saveDebug(steps,self.motorBeta)
 		
-	def saveDebug(self,steps,PhiBeta):
+	def saveDebug(self,steps,motorBeta):
 		line="%g %g %g %g %g %g %g %g %g %g\n" % (time.time()-self.T0,self.timestep, \
-			self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,PhiBeta,steps)
+			self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,motorBeta,steps)
 		self.logfile.write(line)
 
 #Stepper raspberry implementation
 class AxisDriver(axis):
-	def __init__(self,a,v,pointError,PIN,DIR_PIN):
-		super(AxisDriver, self).__init__(a,v,pointError)
+	def __init__(self,name,a,PIN,DIR_PIN):
+		super(AxisDriver, self).__init__(name,a)
 		import pigpio
 		self.pi=pigpio.pi('cronostamper')
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
-		self.stepsPerRevolution=200*32*24	#Motor:steps*microsteps*gearbox
+		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
@@ -215,26 +215,23 @@ class AxisDriver(axis):
 		self.timestepMax=self.pulseWidth*10
 		self.timestepMin=self.pulseWidth*5
 		self.pulseDuty=0.5
-		self.MinPhiStep=math.pi*2/float(self.FullTurnSteps)
-		self.vmax=self.MinPhiStep/self.pulseWidth
+		self.minMotorStep=math.pi*2/float(self.FullTurnSteps)
+		self.vmax=self.minMotorStep/self.pulseWidth
 		self._vmax=self.vmax
-		self.pointError=self.MinPhiStep
+		self.pointError=self.minMotorStep
 		self.stepTarget=0
-		self.PhiBeta=0
-		self.PhiBetaF=0
+		self.motorBeta=0
 		self.dire=1
 		self.pi.write(self.DIR_PIN, self.dire>0)
-	  	self.pi.set_PWM_dutycycle(self.PIN, 0)
 		self.freq=0
 		self.discarted=0
 		self.discartFlag=False
 		self.lock = threading.Lock()
 		self.stepQueue()
-		#self.acceleration=self.vmax/10.
 		print "StepsPerRev",self.stepsPerRevolution \
 			,"FullTurnSteps: ",self.FullTurnSteps \
-			,"PPS",1/self.pulseWidth,"Phisical:",self.MinPhiStep
-		print "Min step (point Error)",ephem.degrees(self.MinPhiStep) \
+			,"PPS",1/self.pulseWidth,"Phisical:",self.minMotorStep
+		print "Min step (point Error)",ephem.degrees(self.minMotorStep) \
 			,"Max speed: ",ephem.degrees(self._vmax)
 
 
@@ -242,17 +239,17 @@ class AxisDriver(axis):
 	def doSteps(self,delta):
 		#Distribute steps on 
 		#delta is in radians. Calculate actual steps 
-		steps=delta/self.MinPhiStep+self.stepsRest
+		steps=delta/self.minMotorStep+self.stepsRest
 		Isteps=round(steps)
 
 		#acumultate the fractional part to the next step
 		self.stepsRest=steps-Isteps
 
 		if self.debug:
-			PhiBeta=float(self.PhiBeta)*self.MinPhiStep
-			#discarted=float(self.discarted)*self.MinPhiStep
-			self.saveDebug(self.discarted,PhiBeta)
-			#self.saveDebug(self.freq*self.dire,PhiBeta)
+			motorBeta=float(self.motorBeta)*self.minMotorStep
+			#discarted=float(self.discarted)*self.minMotorStep
+			self.saveDebug(self.discarted,motorBeta)
+			#self.saveDebug(self.freq*self.dire,motorBeta)
 
 		if Isteps==0:
 			return		
@@ -278,30 +275,30 @@ class AxisDriver(axis):
 		else:
 			dire=-1
 
-		self.PhiBeta=self.PhiBeta+1*dire
+		self.motorBeta=self.motorBeta+1*dire
 
 
 		if self.discartFlag:
 			self.discarted=self.discarted+1*dire
 			print   self.name, "DISCARTED", \
-				ephem.degrees(self.discarted*self.MinPhiStep),\
+				ephem.degrees(self.discarted*self.minMotorStep),\
 				self.discarted
 
 		#Arrived. Stop PWM
-	    	if abs(self.stepTarget-self.PhiBeta) == 0:
+	    	if abs(self.stepTarget-self.motorBeta) == 0:
 			self.freq=0
 			self.discartFlag=True
+			#stop PWM at falling edge
 
 
-		
 
 
 	@threaded
 	def stepQueue(self):
 	  freq=0	
- 	  while not self.kill:
+ 	  while self.RUN:
 		with self.lock:
-		   delta=self.stepTarget-self.PhiBeta
+		   delta=self.stepTarget-self.motorBeta
 		   if abs(delta) != 0:
 			#calculate direction of motion
 			if self.dire*delta<0:
@@ -309,10 +306,10 @@ class AxisDriver(axis):
 				self.pi.write(self.DIR_PIN, self.dire>0)
 
 			if self.v!=0:
-				freq=round(abs(self.v)*1/self.MinPhiStep)
+				freq=round(abs(self.v)*1/self.minMotorStep)
 			else:
-				pass
 				#if self.v==0 hold the last freq value
+				pass
 			if freq  >=1/self.pulseWidth:
 				freq=1/self.pulseWidth
 			self.freq=freq
@@ -329,13 +326,9 @@ class AxisDriver(axis):
 
 
 class mount:
-	def __init__(self,a,v,pointError):
-		self.axis1=AxisDriver(a,v,pointError,12,4)
-		self.axis2=AxisDriver(a,v,pointError,13,5)
-		#self.axis1=axis(a,v,pointError)
-		#self.axis2=axis(a,v,pointError)
-		self.axis1.setName("RA")
-		self.axis2.setName("DEC")
+	def __init__(self,a):
+		self.axis1=AxisDriver('RA',a,12,4)
+		self.axis2=AxisDriver('DEC',a,13,5)
 		self.run()
 
 	def run(self):					
@@ -393,8 +386,8 @@ class mount:
 			self.axis2.beta,self.axis1.v,self.axis2.v,self.axis1.a,self.axis2.a
 
 	def end(self):
-		self.axis1.kill=True
-		self.axis2.kill=True
+		self.axis1.RUN=False
+		self.axis2.RUN=False
 
 
 
@@ -403,13 +396,9 @@ class mount:
 if __name__ == '__main__':
 	#m=mount(1,1)
 	a=ephem.degrees('01:00:00')
-	v=ephem.degrees('05:00:00')
-	e=ephem.degrees('00:00:01')
-	m=mount(a,v,e)
-	#m.axis1.testFreq()
-	#m.end()
-	#exit(0)
-	m.trackSpeed(e,0)
+	m=mount(a)
+	vRA=ephem.degrees('00:00:01')
+	m.trackSpeed(vRA,0)
 	RA=ephem.hours('02:00:00')
 	DEC=ephem.degrees('15:00:00')
 	m.slew(RA,DEC)
@@ -419,17 +408,3 @@ if __name__ == '__main__':
 		time.sleep(m.axis1.timestep)
 		#m.coords()
 	m.end()
-	exit(0)
-
-	RA_axis=axis(1.,1.)
-	RA_axis.run()
-	for i,v in enumerate(xrange(0,600)):
-		x=math.sin(float(v)/100.)
-		RA_axis.track(x)
-		time.sleep(RA_axis.timestep*2)
-		#print RA_axis.beta,RA_axis.v,RA_axis.a,x
-	RA_axis.kill=True
-
-
-
-
