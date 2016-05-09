@@ -70,6 +70,8 @@ function updateValues() {
 	$('#trackingSpeedDEC').text(data.trackingSpeedDEC);
 	$('#slewendRA').text(data.slewendRA);
 	$('#slewendDEC').text(data.slewendDEC);
+	$('#ALT').text(data.ALT);
+	$('#AZ').text(data.AZ);
     },
  
     // code to run if the request fails; the raw request and
@@ -165,6 +167,13 @@ Tracking
 <td>
     <div id="slewendDEC" align="right"></div>
 </td></tr>
+<tr><td>ALT</td><td>
+    <div id="ALT" align="right"></div>
+</td></tr>
+<tr><td>AZ</td><td>
+    <div id="AZ" align="right"></div>
+</td></tr>
+
 </table>
 </td>
 </table>

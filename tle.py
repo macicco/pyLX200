@@ -2,54 +2,41 @@
 #-*- coding: iso-8859-15 -*-
 #NACHO MAS
 import ephem,urllib
-
-
-def group(lst, n):
-  for i in range(0, len(lst), n):
-    val = lst[i:i+n]
-    if len(val) == n:
-      yield tuple(val)
+from config import *
+import zipfile
 
 #Code to get TLE and Comet (format Xephem) from Minor Planet Center
 
 class TLEhandler:
-	def __init__(self,here):
-		self.observer=here
+	def __init__(self,url="http://www.celestrak.com/NORAD/elements/geo.txt"):
+		#ISS http://celestrak.com/NORAD/elements/stations.txt
+		f='ALL_TLE.TXT'
+		url="http://celestrak.com/NORAD/elements/stations.txt"
+		#self.data=self.readTLEurl(url)
+		self.data=self.readTLEfile(f)
+
 
 	#read TLE file
-	def readTLEfile(self,url):
-		url=url
+	def readTLEurl(self,url):
 		f=urllib.urlopen(url)
 		data=f.read().split('\r\n')
-		s=group(data,3)
-		return s
+		return data
+
+	def readTLEfile(self,filename):
+		with open(filename) as f:	
+			data=f.read().split('\r\n')
+		return data
 
 	#return elements that match
-	def TLE(self,url,name):
-		data=self.readTLEfile(url)
-		element=filter(lambda x:x[0].find(name)!=-1, data)
+	def TLE(self,sat):
+		data=group(self.data,3)
+		element=filter(lambda x:x[0].find(sat)!=-1, data)
 		element=element[0]
 		return ephem.readtle(element[0],element[1],element[2])
 		
 
-	def ISS(self):	
-	#ISS http://celestrak.com/NORAD/elements/stations.txt
-		url="http://celestrak.com/NORAD/elements/stations.txt"
-		return self.TLE(url,'ISS')
 
 
-	def path(self,date=ephem.now(),interval=10,step=20):
-		obs=self.observer
-		iss=self.ISS()
-		obs.date=date
-		pos=[]
-		for d in range(0,interval):
-			obs.date=obs.date+ephem.second*step
-			iss.compute(obs)
-			#l=list((ephem.localtime(obs.date),iss.ra*180/pi,iss.dec*180/pi))
-			l=list((obs.date,iss.ra,iss.dec))
-			pos.append(l)
-		return pos
 
 
 if __name__=='__main__':
@@ -63,10 +50,11 @@ if __name__=='__main__':
 	here.compute_pressure()
 
 
-	i=TLEhandler(here)
-	iss=i.ISS()
-	iss.compute()
+	i=TLEhandler()
+	iss=i.TLE('ISS')
+	iss=i.TLE('METEOSAT 7')
+	iss.compute(here)
 	print iss.ra,iss.dec
-	print i.path()
+
 
 

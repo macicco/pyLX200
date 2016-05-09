@@ -2,7 +2,7 @@
 
 import math
 import time,datetime
-import threading
+from config import *
 import ephem
 
 
@@ -17,7 +17,7 @@ def threaded(fn):
 #which implemente the motor driver
 class axis(object):
 	def __init__(self,name,a):
-		self.debug=True
+		self.log=True
 		self.setName(name)
 		self.pointError=ephem.degrees(0)
 		self.timestepMax=0
@@ -35,20 +35,14 @@ class axis(object):
 		self.slewend=False
 		self.RUN=True
 		self.T0=time.time()
-		#self.say()
+
 
 	def setName(self,name):
 		self.name=name
-		if self.debug:
+		if self.log:
 			self.logfile=open(str(self.name)+".log",'w')
 			line="T timestep timesleep vmax beta_target, beta v a motorBeta steps\n"
 			self.logfile.write(line)
-
-	def say(self):
-		print self.acceleration,self.vmax,self.v
-		print self.t_slope,self.beta_slope
-		print self.beta,self.beta_target,self.t2target
-		print self._vmax
 
 
 
@@ -188,7 +182,7 @@ class axis(object):
 		self.motorBeta=self.motorBeta+steps
 		#sleep
 		time.sleep(self.timesleep)
-		if self.debug:
+		if self.log:
 			self.saveDebug(steps,self.motorBeta)
 		
 	def saveDebug(self,steps,motorBeta):
@@ -206,7 +200,7 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
-		self.stepsPerRevolution=200*16*24	#Motor:steps*microsteps*gearbox
+		self.stepsPerRevolution=200*32*24	#Motor:steps*microsteps*gearbox
 		self.corona=500
 		self.plate=500
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
@@ -245,7 +239,7 @@ class AxisDriver(axis):
 		#acumultate the fractional part to the next step
 		self.stepsRest=steps-Isteps
 
-		if self.debug:
+		if self.log:
 			motorBeta=float(self.motorBeta)*self.minMotorStep
 			#discarted=float(self.discarted)*self.minMotorStep
 			self.saveDebug(self.discarted,motorBeta)
@@ -394,7 +388,6 @@ class mount:
 
 
 if __name__ == '__main__':
-	#m=mount(1,1)
 	a=ephem.degrees('01:00:00')
 	m=mount(a)
 	vRA=ephem.degrees('00:00:01')

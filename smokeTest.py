@@ -7,8 +7,8 @@ import time
 import catalogues
 import ephem
 import math
-from util import *
-from thread import *
+from config import *
+
 
 pi=math.pi
 H=catalogues.HiparcosCatalogue()

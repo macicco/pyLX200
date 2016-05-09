@@ -5,7 +5,6 @@ LX200 command set
 '''
 import ephem
 import time,datetime
-import threading
 import ramps
 import tle
 import math
@@ -13,11 +12,6 @@ import zmq
 import json
 from config import *
 
-
-def threaded(fn):
-    def wrapper(*args, **kwargs):
-        threading.Thread(target=fn, args=args, kwargs=kwargs).start()
-    return wrapper
 
 class commands():
 	def __init__(self):
@@ -47,21 +41,29 @@ class commands():
   		":Mn": self.cmd_pulseN,  \
   		":Ms": self.cmd_pulseS,  \
   		":CM": self.cmd_align2target,  \
-  		"@getObserver": self.getObserver
+  		"@getObserver": self.getObserver, \
+  		"@setTrackSpeed": self.setTrackSpeed \
 		}
-		self.targetRA=0		
-		self.targetDEC=0
-		self.RA=0		
-		self.DEC=0
-		self.RUN=True
 		self.observerInit()
+		self.targetRA=ephem.hours(0)
+		self.targetDEC=ephem.degrees(0)
+		ra=ephem.hours(self.observer.sidereal_time())
+		dec=ephem.degrees(0)
+		star = ephem.FixedBody(ra,dec,observer=self.observer,epoch='2016.4')
+		star.compute(self.observer)
+		self.RA=star.ra
+		self.DEC=star.dec
+		self.alt=star.alt
+		self.az=star.az
+
+		self.RUN=True
+
 		self.pulseStep=ephem.degrees('00:00:01')
 		a=ephem.degrees('00:20:00')
 		self.m=ramps.mount(a)
-		vRA=ephem.hours("00:00:01")
+		vRA=-ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
-
 		self.zmqcontext = zmq.Context()
 
 		self.socketStream = self.zmqcontext.socket(zmq.PUB)
@@ -83,7 +85,7 @@ class commands():
 			print "Clossing ZMQ queue"
 			socketCmd.close()
 			return
-		print("Received request: %s" % message)
+		#print("Received request: %s" % message)
 
 		#  Do some 'work'
 		reply=self.cmd(message)
@@ -106,6 +108,12 @@ class commands():
 				'elev':self.observer.elev,'temp':self.observer.temp}
 		return json.dumps(observer)
 
+	def setTrackSpeed(self,arg):
+		c=arg.split()
+		vRA=c[0]
+		vDEC=c[1]
+		self.m.trackSpeed(vRA,vDEC)
+
     	def end(self):
         	print "Ending.."
 		self.RUN=False
@@ -116,20 +124,26 @@ class commands():
 		
 
 	def run(self):
-		#self.go2ISS()
-		#self.ISSspeed()
 	  	while self.RUN:
 			time.sleep(0.1)
 			#update 
 			self.observer.date=ephem.Date(datetime.datetime.utcnow())
 			sideral=self.observer.sidereal_time()
-			ra=ephem.hours(sideral-self.m.axis1.beta).norm
+			ra=ephem.hours(sideral+self.m.axis1.beta).norm
 			if ra==ephem.hours("24:00:00"):
 				ra=ephem.hours("00:00:00")
+			dec=ephem.degrees(self.m.axis2.beta)
+			np=ephem.Equatorial(ra,dec,epoch=ephem.now()) #!bad
+			p = ephem.FixedBody()
+			p._ra,p._dec = np.ra,np.dec
+			p.compute(self.observer)
 			self.RA=ra
-			self.DEC=ephem.degrees(self.m.axis2.beta)
+			self.DEC=dec
+			self.alt=p.alt
+			self.az=p.az
 			msg = {'time':str(self.observer.date),'LST':str(sideral),\
 				'RA':str(self.RA),'DEC':str(self.DEC),\
+				'ALT':str(self.alt),'AZ':str(self.az),\
 				'targetRA':str(self.targetRA),'targetDEC':str(self.targetDEC),\
 				'speedRA':str(self.m.axis1.v),'speedDEC':str(self.m.axis2.v),\
 				'trackingSpeedRA':str(self.m.axis1.vtracking),'trackingSpeedDEC':str(self.m.axis2.vtracking),\
@@ -137,38 +151,8 @@ class commands():
 				}
 			self.socketStream.send(mogrify('values',msg))
 
-			#self.go2ISS()
-			#self.ISSspeed()
-			#print self.iss.ra,self.iss.dec
-
-			#print self.RA,self.DEC
-
 		self.end()
 		print "MOTORS STOPPED"
-
-	def go2ISS(self):
-			observer=self.observer
-			observer.date=ephem.Date(datetime.datetime.utcnow())
-			self.iss.compute(observer)
-			self.targetRA=self.iss.ra
-			self.targetDEC=self.iss.dec
-			self.cmd_slew('')
-  			return "target#"
-
-	def ISSspeed(self):
-			observer=self.observer
-			observer.date=ephem.Date(datetime.datetime.utcnow())
-			self.iss.compute(self.observer)
-			RA0=self.iss.ra
-			DEC0=self.iss.dec
-			observer.date=observer.date+ephem.second
-			self.iss.compute(observer)
-			RA1=self.iss.ra
-			DEC1=self.iss.dec
-			vRA=-(RA1-RA0)
-			vDEC=DEC1-DEC0
-			self.m.trackSpeed(vRA,vDEC)
-  			return "target#"
 
 	def cmd(self,cmd):
                 for c in self.CMDs.keys():
@@ -186,8 +170,6 @@ class commands():
 	def cmd_dummy(self,arg):
 		print "DUMMY CMD:",arg
 		return 
-
-
 
 	def cmd_ack(self,arg):
 		return "P"
@@ -243,7 +225,7 @@ class commands():
 	def hourAngle(self,ra):
 		self.observer.date=ephem.now()
 		sideral=self.observer.sidereal_time()
-		ra_=ephem.hours(sideral-ra).znorm
+		ra_=ephem.hours(ra-sideral).znorm
 		if ra_==ephem.hours("24:00:00"):
 			ra=ephem.hours("00:00:00")
 		return ra_		
@@ -261,12 +243,6 @@ class commands():
 
 
 	def cmd_getTelescopeRA(self,arg):
-		self.observer.date=ephem.Date(datetime.datetime.utcnow())
-		sideral=self.observer.sidereal_time()
-		ra=ephem.hours(sideral-self.m.axis1.beta).norm
-		if ra==ephem.hours("24:00:00"):
-			ra=ephem.hours("00:00:00")
-		self.RA=ra
 		data=str(self.RA)
 		H,M,S=data.split(':')
 		H=int(H)
