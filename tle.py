@@ -12,8 +12,9 @@ class TLEhandler:
 		#ISS http://celestrak.com/NORAD/elements/stations.txt
 		f='ALL_TLE.TXT'
 		url="http://celestrak.com/NORAD/elements/stations.txt"
-		#self.data=self.readTLEurl(url)
-		self.data=self.readTLEfile(f)
+		#url="http://celestrak.com/NORAD/elements/geo.txt"
+		self.data=self.readTLEurl(url)
+		#self.data=self.readTLEfile(f)
 
 
 	#read TLE file

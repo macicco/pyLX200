@@ -28,6 +28,7 @@ class tracker:
 		self.observerInit()
 		self.TLEs=tle.TLEhandler()
 		self.a=0
+		self.go2rise=False
 		self.RUN=True
 
 	def observerInit(self):
@@ -42,7 +43,7 @@ class tracker:
 		self.observer.compute_pressure()
 
 	def trackSatellite(self,sat):
-		error=ephem.degrees('00:00:20')
+		error=ephem.degrees('00:00:05')
 		satRA,satDEC = self.go2sat(sat)
 		vsatRA,vsatDEC = self.satSpeed(sat)
 		self.sendTrackSpeed(vsatRA,vsatDEC)
@@ -51,8 +52,12 @@ class tracker:
 		if abs(errorRA)>=error or abs(errorDEC)>=error:
 			print "Too much error. Slewing",(errorRA),(errorDEC),str(error)
 			self.sendSlew(satRA,satDEC)
+		else:
+			pass
+			print "OK",(errorRA),(errorDEC),str(error)
 
 	def circle(self,re,dec,r,v):
+		#not finished
 		self.a=v*self.timestep+self.a
 		vRA=r*math.sin(self.a)
 		vDEC=r*math.cos(self.a)
@@ -76,20 +81,29 @@ class tracker:
 		while self.RUN:
 			time.sleep(self.timestep)
 			self.values=self.lastValue()
-			#print self.values['RA']
-			self.RA=ephem.hours(str(self.values['RA']))
-			self.DEC=ephem.degrees(str(self.values['DEC']))
-			#self.trackSatellite('METEOSAT 7')
-			#self.trackSatellite('ISS')
+			#Call to the RA/DEC primitives for accuracy
+			self.socketCmd.send('@getRA')
+			self.RA=ephem.hours(self.socketCmd.recv())
+			self.socketCmd.send('@getDEC')
+			self.DEC=ephem.degrees(self.socketCmd.recv())
+			#self.trackSatellite('METEOSAT-7')
+			#self.trackSatellite('KAZSAT 3')
+			self.trackSatellite('ISS')
 			#self.trackSatellite('DEIMOS 2')	
-			self.circle(0,0,ephem.degrees('0:30:00'),0.1)
+			#self.circle(0,0,ephem.degrees('0:30:00'),0.1)
 
 	def go2sat(self,sat):
 			observer=self.observer
 			s=self.TLEs.TLE(sat)
 			observer.date=ephem.Date(datetime.datetime.utcnow())
 			s.compute(observer)
-			return (s.ra,s.dec)
+			ra,dec=(s.ra,s.dec)
+			if self.go2rise:
+			    if s.alt<0:
+				info=observer.next_pass(s)
+				ra,dec=observer.radec_of(info[1],observer.horizon)
+				
+			return ra,dec
 
 
 	def satSpeed(self,sat):
@@ -106,7 +120,9 @@ class tracker:
 			DEC1=s.dec
 			vRA=ephem.degrees((RA1-RA0)/seconds-ephem.hours('00:00:01'))
 			vDEC=ephem.degrees((DEC1-DEC0)/seconds)
-			
+			if self.go2rise:
+			    if s.alt<0:
+				vRA,vDEC=(0,0)
   			return (vRA,vDEC)
 
 	def lastValue(self):

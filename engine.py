@@ -42,6 +42,8 @@ class commands():
   		":Ms": self.cmd_pulseS,  \
   		":CM": self.cmd_align2target,  \
   		"@getObserver": self.getObserver, \
+  		"@getRA": self.getRA, \
+  		"@getDEC": self.getDEC, \
   		"@setTrackSpeed": self.setTrackSpeed \
 		}
 		self.observerInit()
@@ -127,21 +129,15 @@ class commands():
 	  	while self.RUN:
 			time.sleep(0.1)
 			#update 
-			self.observer.date=ephem.Date(datetime.datetime.utcnow())
-			sideral=self.observer.sidereal_time()
-			ra=ephem.hours(sideral+self.m.axis1.beta).norm
-			if ra==ephem.hours("24:00:00"):
-				ra=ephem.hours("00:00:00")
-			dec=ephem.degrees(self.m.axis2.beta)
+			ra=self.getRA('')
+			dec=self.getDEC('')
 			np=ephem.Equatorial(ra,dec,epoch=ephem.now()) #!bad
 			p = ephem.FixedBody()
 			p._ra,p._dec = np.ra,np.dec
 			p.compute(self.observer)
-			self.RA=ra
-			self.DEC=dec
 			self.alt=p.alt
 			self.az=p.az
-			msg = {'time':str(self.observer.date),'LST':str(sideral),\
+			msg = {'time':str(self.observer.date),'LST':str(self.sideral),\
 				'RA':str(self.RA),'DEC':str(self.DEC),\
 				'ALT':str(self.alt),'AZ':str(self.az),\
 				'targetRA':str(self.targetRA),'targetDEC':str(self.targetDEC),\
@@ -150,7 +146,9 @@ class commands():
 				'slewendRA':str(self.m.axis1.slewend),'slewendDEC':str(self.m.axis2.slewend)\
 				}
 			self.socketStream.send(mogrify('values',msg))
-
+			if False:
+				if self.alt<=ephem.degrees('10:00:00'):
+					self.cmd_stopSlew('')
 		self.end()
 		print "MOTORS STOPPED"
 
@@ -191,7 +189,7 @@ class commands():
 
 	def cmd_getSideralTime(self,arg):
 		sideralTime=self.observer.sidereal_time()
-		return str(sideralTime)+'#'
+		return str(self.sideralTime)+'#'
 
 	def cmd_getTargetRA(self,arg):
 		return str(self.targetRA)+'#'
@@ -224,8 +222,8 @@ class commands():
 
 	def hourAngle(self,ra):
 		self.observer.date=ephem.now()
-		sideral=self.observer.sidereal_time()
-		ra_=ephem.hours(ra-sideral).znorm
+		self.sideral=self.observer.sidereal_time()
+		ra_=ephem.hours(ra-self.sideral).znorm
 		if ra_==ephem.hours("24:00:00"):
 			ra=ephem.hours("00:00:00")
 		return ra_		
@@ -239,10 +237,30 @@ class commands():
 		vDEC=ephem.degrees("00:00:00")
 		self.m.track(vRA,vDEC)
 		return
-		
 
+	#Update RA primitive
+	def getRA(self,arg):
+		self.observer.date=ephem.Date(datetime.datetime.utcnow())
+		self.sideral=self.observer.sidereal_time()
+		beta=float(self.m.axis1.motorBeta)*self.m.axis1.minMotorStep
+		#beta=self.m.axis1.beta
+		#print self.m.axis1.beta-beta
+		ra=ephem.hours(self.sideral+beta).norm
+		if ra==ephem.hours("24:00:00"):
+			ra=ephem.hours("00:00:00")
+		self.RA=ra
+		return self.RA
+
+	#Update DEC primitive	
+	def getDEC(self,arg):
+		beta=float(self.m.axis2.motorBeta)*self.m.axis2.minMotorStep
+		#beta=self.m.axis2.beta
+		sign=math.copysign(1,beta)	
+		self.DEC=ephem.degrees(beta)
+		return self.DEC
 
 	def cmd_getTelescopeRA(self,arg):
+		self.getRA('')
 		data=str(self.RA)
 		H,M,S=data.split(':')
 		H=int(H)
@@ -252,8 +270,7 @@ class commands():
 		return d+'#'
 
 	def cmd_getTelescopeDEC(self,arg):
-		sign=math.copysign(1,self.m.axis2.beta)	
-		self.DEC=ephem.degrees(self.m.axis2.beta)
+		self.getDEC('')
 		data=str(self.DEC)
 		D,M,S=data.split(':')
 		if  D[0]=='-':

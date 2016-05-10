@@ -13,7 +13,7 @@ gear['pinion']=500
 here={}
 here['lat']="40.440154"
 here['lon']="-3.668747"
-here['horizon']=10
+here['horizon']="10:00:00"
 here['elev']=700
 here['temp']=25e0
 
