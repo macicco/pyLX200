@@ -1,31 +1,43 @@
 #!/usr/bin/python
 import json
 import threading
+import ConfigParser
+from configobj import ConfigObj
+from validate import Validator
 
-#configuration options
-gear={}
-gear['maxPPS']=1000
-gear['motorStepsRevolution']=200
-gear['microstep']=32
-gear['corona']=500
-gear['pinion']=500
 
-here={}
-here['lat']="40.440154"
-here['lon']="-3.668747"
-here['horizon']="10:00:00"
-here['elev']=700
-here['temp']=25e0
+def saveConfig():
+	#TBD
+	Config = ConfigObj()
+	Config.filename="config.ini"
 
-tleurl="http://www.idb.com.au/files/TLE_DATA/ALL_TLE.ZIP"
+	#configuration options
+	gear={}
+	gear['maxPPS']=1024
+	gear['motorStepsRevolution']=200
+	gear['microstep']=32
+	gear['corona']=30
+	gear['pinion']=300
 
-camera="KK"
+	Config['gear']=gear
 
-zmqStreamPort = 5556
-zmqCmdPort = 5557
+	here={}
+	here['lat']="40.440154"
+	here['lon']="-3.668747"
+	here['horizon']="10:00:00"
+	here['elev']=700
+	here['temp']=25e0
+	Config['observer']=here
 
-socketsPort = 9999
-httpPort= 5000
+	servers={}
+	servers['tleurl']="http://www.idb.com.au/files/TLE_DATA/ALL_TLE.ZIP"
+	servers['zmqStreamPort'] = 7556
+	servers['zmqCmdPort'] = 7557
+	servers['socketsPort'] = 7999
+	servers['httpPort']= 7000
+	Config['servers']=servers
+
+	Config.write()
 
 
 
@@ -52,5 +64,32 @@ def group(lst, n):
     val = lst[i:i+n]
     if len(val) == n:
       yield tuple(val)
+
+
+configFile="config.ini"
+configFileSpec="config.ini.spec"
+Config = ConfigObj(configFile,configspec=configFileSpec)
+val=Validator()
+test = Config.validate(val)
+if test == True:
+    print 'Config OK'
+else:
+    print 'Config wrong!!!'
+    print 'Check that '+configFile+" match the rules in "+ configFileSpec
+    exit(1)
+	
+gear=Config['gear']
+here=Config['here']
+servers=Config['servers']
+engine=Config['engine']
+print here
+print gear
+print servers
+print engine
+
+
+
+
+
 
 

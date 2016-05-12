@@ -69,7 +69,7 @@ class commands():
 		self.zmqcontext = zmq.Context()
 
 		self.socketStream = self.zmqcontext.socket(zmq.PUB)
-		self.socketStream.bind("tcp://*:%s" % zmqStreamPort)
+		self.socketStream.bind("tcp://*:%s" % servers['zmqStreamPort'])
 
 		self.zmqQueue()
 
@@ -79,7 +79,7 @@ class commands():
 	@threaded
 	def zmqQueue(self):
 	    socketCmd = self.zmqcontext.socket(zmq.REP)
-	    socketCmd.bind("tcp://*:%s" % zmqCmdPort)
+	    socketCmd.bind("tcp://*:%s" % servers['zmqCmdPort'])
 	    while self.RUN:
 		try:
 	    		message = socketCmd.recv()
@@ -123,7 +123,11 @@ class commands():
 		self.zmqcontext.term()
 
 
-		
+	def altAz_of(self,ra,dec):
+		p = ephem.FixedBody()
+		p._ra,p._dec = ra,dec
+		p.compute(self.observer)		
+		return (p.alt,p.az)
 
 	def run(self):
 	  	while self.RUN:
@@ -131,12 +135,8 @@ class commands():
 			#update 
 			ra=self.getRA('')
 			dec=self.getDEC('')
-			np=ephem.Equatorial(ra,dec,epoch=ephem.now()) #!bad
-			p = ephem.FixedBody()
-			p._ra,p._dec = np.ra,np.dec
-			p.compute(self.observer)
-			self.alt=p.alt
-			self.az=p.az
+			#np=ephem.Equatorial(ra,dec,epoch=ephem.now()) #!bad
+			self.alt,self.az=self.altAz_of(ra,dec)
 			msg = {'time':str(self.observer.date),'LST':str(self.sideral),\
 				'RA':str(self.RA),'DEC':str(self.DEC),\
 				'ALT':str(self.alt),'AZ':str(self.az),\
@@ -214,11 +214,17 @@ class commands():
 		return "target#"
 
 	def cmd_slew(self,arg):
-		ra=self.hourAngle(self.targetRA)
-		print "slewing to:",ra,self.targetDEC," from:",self.hourAngle(self.RA),self.DEC
-		self.m.slew(ra,self.targetDEC)
 		#return values 0==OK, 1 == below Horizon
-		return "0#"
+		alt,az=self.altAz_of(self.targetRA,self.targetDEC)
+		if alt <=self.observer.horizon and False:
+			print "Not slewing: Below horizon"
+			r='1'
+		if True:
+			ra=self.hourAngle(self.targetRA)
+			print "slewing to:",self.targetRA,self.targetDEC," from:",self.RA,self.DEC
+			self.m.slew(ra,self.targetDEC)
+			r='0'
+		return r+"#"
 
 	def hourAngle(self,ra):
 		self.observer.date=ephem.now()

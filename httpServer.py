@@ -10,7 +10,7 @@ last={}
 
 @app.route('/')
 def index():
-    return render_template('arrow.html', camera=camera)
+    return render_template('arrow.html', camera='')
 
 @app.route('/help')
 def help():
@@ -20,6 +20,15 @@ def help():
 def gps_json():
 	return jsonify(lastValue())
 
+@app.route('/getObserver')
+def getObserver():
+	socketCmd.send('@getObserver')
+	reply=socketCmd.recv()
+	return reply
+
+@app.route('/getConfig')
+def getConfig():
+	return jsonify(Config)
 
 def lastValue():
 	global last
@@ -36,13 +45,13 @@ if __name__ == '__main__':
 	socketStream = context.socket(zmq.SUB)
 	#CONFLATE: get only one message (do not work with the stock version of zmq, works from ver 4.1.4)
 	socketStream.setsockopt(zmq.CONFLATE, 1)
-	socketStream.connect ("tcp://localhost:%s" % zmqStreamPort)
+	socketStream.connect ("tcp://localhost:%s" % servers['zmqStreamPort'])
 	socketStream.setsockopt(zmq.SUBSCRIBE, 'values')
 
 	socketCmd = context.socket(zmq.REQ)
-	socketCmd.connect ("tcp://localhost:%s" % zmqCmdPort)
+	socketCmd.connect ("tcp://localhost:%s" % servers['zmqCmdPort'])
 
 
 
 	#main loop
-	app.run(host='0.0.0.0',port=httpPort,debug=True)
+	app.run(host='0.0.0.0',port=servers['httpPort'],debug=False)

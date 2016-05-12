@@ -17,15 +17,15 @@ context = zmq.Context()
 
  
 HOST = ''   # Symbolic name meaning all available interfaces
-PORT = 6666 # Arbitrary non-privileged port
+ # Arbitrary non-privileged port
  
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print 'Starting LX200 mount controler.'
-print 'Socket created',HOST+":",str(PORT)
+print 'Socket created',HOST+":",str(servers['socketPort'])
 
 #Bind socket to local host and port
 try:
-    s.bind((HOST, PORT))
+    s.bind((HOST, servers['socketPort']))
 except socket.error as msg:
     print 'Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
     sys.exit()
@@ -75,7 +75,7 @@ def clientthread(conn):
     RUN=True
     #  Socket to talk to ZMQserver
     zmqSocket = context.socket(zmq.REQ)
-    zmqSocket.connect("tcp://localhost:%s" % zmqCmdPort)
+    zmqSocket.connect("tcp://localhost:%s" % servers['zmqCmdPort'])
 
    
     #infinite loop so that function do not terminate and thread do not end.

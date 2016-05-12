@@ -23,7 +23,7 @@ class axis(object):
 		self.timestepMax=0
 		self.timestepMin=0
 		self.timestep=self.timestepMax
-		self.acceleration=ephem.degrees(a)
+		self.acceleration=ephem.degrees(engine['acceleration'])
 		self.a=ephem.degrees(0)
 		self.v=ephem.degrees(0)
 		self.vmax=ephem.degrees(self.v)
@@ -200,12 +200,13 @@ class AxisDriver(axis):
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
-		self.stepsPerRevolution=200*32*24	#Motor:steps*microsteps*gearbox
-		self.corona=500
-		self.plate=500
+		self.stepsPerRevolution=gear['motorStepsRevolution']*gear['microstep']*gear['reducer']
+		self.corona=gear['corona']
+		self.plate=gear['pinion']
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
-		self.pulseWidth=0.001    		#in seconds
+		self.maxPPS=engine['maxPPS']
+		self.pulseWidth=1./float(self.maxPPS)
 		self.timestepMax=self.pulseWidth*10
 		self.timestepMin=self.pulseWidth*5
 		self.pulseDuty=0.5
@@ -304,8 +305,8 @@ class AxisDriver(axis):
 			else:
 				#if self.v==0 hold the last freq value
 				pass
-			if freq  >=1/self.pulseWidth:
-				freq=1/self.pulseWidth
+			if freq  >=self.maxPPS:
+				freq=self.maxPPS
 			self.freq=freq
 			self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
 		   	self.discartFlag=False
@@ -313,8 +314,11 @@ class AxisDriver(axis):
 			self.freq=0
 			self.discartFlag=True
 			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
-
-		time.sleep(self.pulseWidth)
+		if self.freq!=0:
+			#time.sleep(self.freq/2)
+			time.sleep(self.pulseWidth)
+		else:
+			time.sleep(self.timestepMax)
 	  print "STEPS QUEUE END"
 	  self.pi.hardware_PWM(self.PIN,0,0)
 

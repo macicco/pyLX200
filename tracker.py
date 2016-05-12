@@ -19,11 +19,11 @@ class tracker:
 		self.socketStream = context.socket(zmq.SUB)
 		#CONFLATE: get only one message (do not work with the stock version of zmq, works from ver 4.1.4)
 		self.socketStream.setsockopt(zmq.CONFLATE, 1)
-		self.socketStream.connect ("tcp://localhost:%s" % zmqStreamPort)
+		self.socketStream.connect ("tcp://localhost:%s" % servers['zmqStreamPort'])
 		self.socketStream.setsockopt(zmq.SUBSCRIBE, 'values')
 	
 		self.socketCmd = context.socket(zmq.REQ)
-		self.socketCmd.connect ("tcp://localhost:%s" % zmqCmdPort)
+		self.socketCmd.connect ("tcp://localhost:%s" % servers['zmqCmdPort'])
 
 		self.observerInit()
 		self.TLEs=tle.TLEhandler()
