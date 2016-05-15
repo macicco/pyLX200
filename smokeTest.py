@@ -14,7 +14,7 @@ pi=math.pi
 H=catalogues.HiparcosCatalogue()
 
 HOST = 'localhost'   # Symbolic name meaning all available interfaces
-PORT = 6666 # Arbitrary non-privileged port
+PORT = servers['socketPort'] # Arbitrary non-privileged port
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,9 +23,6 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_address = (HOST, PORT)
 print >>sys.stderr, 'connecting to %s port %s' % server_address
 sock.connect(server_address)
-
-RUN=True
-
 
 
 def drawCostellationsFigures(costellations=['Aur']):
@@ -50,38 +47,39 @@ def drawCostellationsFigures(costellations=['Aur']):
 				coords.append([cmd1,cmd2])
 	return coords
 
+def costellations():
+	RUN=True
+	while RUN:
+		time.sleep(0.1)	
+		coste=['Tau','Gem','Cnc','Leo','Vir','Lib','Sco','Sgr','Cap','Aqr','Psc','Ari']
+		coords=drawCostellationsFigures(coste)
+		try:
+		  while True:
+		     for coord in coords:
+			print coord
+			r_cmd=':Sr '+coord[0]
+			print >>sys.stderr, 'sending "%s"' % r_cmd
+			sock.sendall(r_cmd+'#')
+			time.sleep(0.1)	
+			data = sock.recv(16)
+			print >>sys.stderr, 'received "%s"' % data
+			d_cmd=':Sd '+coord[1]
+			print >>sys.stderr, 'sending "%s"' % d_cmd
+			sock.sendall(d_cmd+'#')
+			time.sleep(0.1)	
+			data = sock.recv(16)
+			print >>sys.stderr, 'received "%s"' % data
+		    	#sock.sendall(':Q#')
+			sock.sendall(':MS#')
+	    		time.sleep(1)	
 
-while RUN:
- time.sleep(0.1)	
- coste=['Tau','Gem','Cnc','Leo','Vir','Lib','Sco','Sgr','Cap','Aqr','Psc','Ari']
- coords=drawCostellationsFigures(coste)
- try:
-    
-    # Send data
-    messages =[chr(6),':info',':GR',':Sr 01:00:00',':Sd 35:00',':MS'] 
+		finally:
+			print >>sys.stderr, 'closing socket'
+			sock.close()
+			RUN=False
 
-    #for msg in messages:	
-    while True:
-       for coord in coords:
-	    print coord
-	    r_cmd=':Sr '+coord[0]
-	    print >>sys.stderr, 'sending "%s"' % r_cmd
-	    sock.sendall(r_cmd+'#')
-	    time.sleep(0.1)	
-	    data = sock.recv(16)
-            print >>sys.stderr, 'received "%s"' % data
-	    d_cmd=':Sd '+coord[1]
-	    print >>sys.stderr, 'sending "%s"' % d_cmd
-	    sock.sendall(d_cmd+'#')
-	    time.sleep(0.1)	
-	    data = sock.recv(16)
-            print >>sys.stderr, 'received "%s"' % data
+def testOvershoot():
+		coords=[[]]
 
-	    #sock.sendall(':Q#')
-	    sock.sendall(':MS#')
-	    time.sleep(5)	
+costellations()
 
- finally:
-    print >>sys.stderr, 'closing socket'
-    sock.close()
-    RUN=False

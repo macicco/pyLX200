@@ -199,7 +199,7 @@ class AxisDriver(axis):
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
-		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
+		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 		self.stepsPerRevolution=gear['motorStepsRevolution']*gear['microstep']*gear['reducer']
 		self.corona=gear['corona']
 		self.plate=gear['pinion']
@@ -243,7 +243,7 @@ class AxisDriver(axis):
 		if self.log:
 			motorBeta=float(self.motorBeta)*self.minMotorStep
 			#discarted=float(self.discarted)*self.minMotorStep
-			self.saveDebug(self.discarted,motorBeta)
+			self.saveDebug(self.freq,motorBeta)
 			#self.saveDebug(self.freq*self.dire,motorBeta)
 
 		if Isteps==0:
@@ -260,7 +260,8 @@ class AxisDriver(axis):
 
 	def falling(self,gpio, level, tick):
 		if self.discartFlag:
-			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
+			with self.lock:
+				self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
 
 	def stepCounter(self,gpio, level, tick):
      	    with self.lock:
@@ -281,7 +282,7 @@ class AxisDriver(axis):
 
 		#Arrived. Stop PWM
 	    	if abs(self.stepTarget-self.motorBeta) == 0:
-			self.freq=0
+			#self.freq=0
 			self.discartFlag=True
 			#stop PWM at falling edge
 
@@ -290,7 +291,8 @@ class AxisDriver(axis):
 
 	@threaded
 	def stepQueue(self):
-	  freq=0	
+	  freq=0
+	  freqRest=0	
  	  while self.RUN:
 		with self.lock:
 		   delta=self.stepTarget-self.motorBeta
@@ -301,7 +303,9 @@ class AxisDriver(axis):
 				self.pi.write(self.DIR_PIN, self.dire>0)
 
 			if self.v!=0:
-				freq=round(abs(self.v)*1/self.minMotorStep)
+				ffreq=abs(self.v)/self.minMotorStep+freqRest
+				freq=round(ffreq)
+				freqRest=ffreq-freq
 			else:
 				#if self.v==0 hold the last freq value
 				pass

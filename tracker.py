@@ -14,36 +14,58 @@ from config import *
 class tracker:
 	def __init__(self):
 		self.last={}
+		self.CMDs={ 
+		"@readTLEfile":self.readTLEfile,  \
+		"@loadTLE": self.loadTLE,  \
+		"@go2TLE": self.go2TLE  \
+		}
 		self.timestep=0.1
-		context = zmq.Context()
-		self.socketStream = context.socket(zmq.SUB)
+		self.context = zmq.Context()
+		self.socketStream = self.context.socket(zmq.SUB)
 		#CONFLATE: get only one message (do not work with the stock version of zmq, works from ver 4.1.4)
 		self.socketStream.setsockopt(zmq.CONFLATE, 1)
 		self.socketStream.connect ("tcp://localhost:%s" % servers['zmqStreamPort'])
 		self.socketStream.setsockopt(zmq.SUBSCRIBE, 'values')
 	
-		self.socketCmd = context.socket(zmq.REQ)
-		self.socketCmd.connect ("tcp://localhost:%s" % servers['zmqCmdPort'])
-
+		self.socketEngineCmd = self.context.socket(zmq.REQ)
+		self.socketEngineCmd.connect ("tcp://localhost:%s" % servers['zmqEngineCmdPort'])
+		self.gearInit()
 		self.observerInit()
 		self.TLEs=tle.TLEhandler()
 		self.a=0
 		self.go2rise=False
 		self.RUN=True
 
+	def readTLEfile(self,arg):
+		pass
+
+	def loadTLE(self,arg):
+		pass
+
+	def go2TLE(self,arg):
+		pass
+
+
 	def observerInit(self):
-		self.socketCmd.send('@getObserver')
-		reply=json.loads(self.socketCmd.recv())
+		self.socketEngineCmd.send('@getObserver')
+		reply=json.loads(self.socketEngineCmd.recv())
 		self.observer=ephem.Observer()
-		self.observer.lat=reply['lat']
-		self.observer.lon=reply['lon']
-		self.observer.horizon=reply['horizon']
+		self.observer.lat=ephem.degrees(str(reply['lat']))
+		self.observer.lon=ephem.degrees(str(reply['lon']))
+		self.observer.horizon=ephem.degrees(str(reply['horizon']))
 		self.observer.elev=reply['elev']
 		self.observer.temp=reply['temp']
 		self.observer.compute_pressure()
 
+	def gearInit(self):
+		self.socketEngineCmd.send('@getGear')
+		reply=json.loads(self.socketEngineCmd.recv())
+		self.pointError=ephem.degrees(str(reply['pointError']))
+		print self.pointError
+		
+
 	def trackSatellite(self,sat):
-		error=ephem.degrees('00:00:05')
+		error=self.pointError
 		satRA,satDEC = self.go2sat(sat)
 		vsatRA,vsatDEC = self.satSpeed(sat)
 		self.sendTrackSpeed(vsatRA,vsatDEC)
@@ -65,16 +87,35 @@ class tracker:
 
 
 	def sendSlew(self,RA,DEC):
-		self.socketCmd.send(':Sr '+str(RA))
-		reply=self.socketCmd.recv()
-		self.socketCmd.send(':Sd '+str(DEC))
-		reply=self.socketCmd.recv()
-		self.socketCmd.send(':MS')
-		reply=self.socketCmd.recv()
+		self.socketEngineCmd.send(':Sr '+str(RA))
+		reply=self.socketEngineCmd.recv()
+		self.socketEngineCmd.send(':Sd '+str(DEC))
+		reply=self.socketEngineCmd.recv()
+		self.socketEngineCmd.send(':MS')
+		reply=self.socketEngineCmd.recv()
 
 	def sendTrackSpeed(self,vRA,vDEC):
-		self.socketCmd.send('@setTrackSpeed '+str(vRA)+' '+str(vDEC))
-		reply=self.socketCmd.recv()
+		self.socketEngineCmd.send('@setTrackSpeed '+str(vRA)+' '+str(vDEC))
+		reply=self.socketEngineCmd.recv()
+
+	@threaded
+	def zmqQueue(self):
+	    socketTrakerCmd = self.zmqcontext.socket(zmq.REP)
+	    socketTrakerCmd.bind("tcp://*:%s" % servers['zmqTrakerCmdPort'])
+	    while self.RUN:
+		try:
+	    		message = socketTrakerCmd.recv()
+		except:
+			print "Clossing ZMQ queue"
+			socketTrakerCmd.close()
+			return
+		#print("Received request: %s" % message)
+
+		#  Do some 'work'
+		reply=self.cmd(message)
+
+		#  Send reply back to client
+    		socketTrakerCmd.send(str(reply))
 
 
 	def run(self):
@@ -82,10 +123,10 @@ class tracker:
 			time.sleep(self.timestep)
 			self.values=self.lastValue()
 			#Call to the RA/DEC primitives for accuracy
-			self.socketCmd.send('@getRA')
-			self.RA=ephem.hours(self.socketCmd.recv())
-			self.socketCmd.send('@getDEC')
-			self.DEC=ephem.degrees(self.socketCmd.recv())
+			self.socketEngineCmd.send('@getRA')
+			self.RA=ephem.hours(self.socketEngineCmd.recv())
+			self.socketEngineCmd.send('@getDEC')
+			self.DEC=ephem.degrees(self.socketEngineCmd.recv())
 			#self.trackSatellite('METEOSAT-7')
 			#self.trackSatellite('KAZSAT 3')
 			self.trackSatellite('ISS')
@@ -98,11 +139,13 @@ class tracker:
 			observer.date=ephem.Date(datetime.datetime.utcnow())
 			s.compute(observer)
 			ra,dec=(s.ra,s.dec)
-			if self.go2rise:
-			    if s.alt<0:
-				info=observer.next_pass(s)
-				ra,dec=observer.radec_of(info[1],observer.horizon)
-				
+			if engine['overhorizon'] and s.alt<0:
+				if engine['go2rising']:
+					info=observer.next_pass(s)
+					ra,dec=observer.radec_of(info[1],observer.horizon)			
+					print "Next pass",info,ra,dec
+				else:
+					ra,dec=(self.RA,self.DEC)
 			return ra,dec
 
 
@@ -120,8 +163,7 @@ class tracker:
 			DEC1=s.dec
 			vRA=ephem.degrees((RA1-RA0)/seconds-ephem.hours('00:00:01'))
 			vDEC=ephem.degrees((DEC1-DEC0)/seconds)
-			if self.go2rise:
-			    if s.alt<0:
+			if engine['overhorizon'] and s.alt<0:
 				vRA,vDEC=(0,0)
   			return (vRA,vDEC)
 

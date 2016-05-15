@@ -75,7 +75,7 @@ def clientthread(conn):
     RUN=True
     #  Socket to talk to ZMQserver
     zmqSocket = context.socket(zmq.REQ)
-    zmqSocket.connect("tcp://localhost:%s" % servers['zmqCmdPort'])
+    zmqSocket.connect("tcp://localhost:%s" % servers['zmqEngineCmdPort'])
 
    
     #infinite loop so that function do not terminate and thread do not end.

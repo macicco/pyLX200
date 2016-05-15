@@ -42,6 +42,7 @@ class commands():
   		":Ms": self.cmd_pulseS,  \
   		":CM": self.cmd_align2target,  \
   		"@getObserver": self.getObserver, \
+  		"@getGear": self.getGear, \
   		"@getRA": self.getRA, \
   		"@getDEC": self.getDEC, \
   		"@setTrackSpeed": self.setTrackSpeed \
@@ -71,6 +72,9 @@ class commands():
 		self.socketStream = self.zmqcontext.socket(zmq.PUB)
 		self.socketStream.bind("tcp://*:%s" % servers['zmqStreamPort'])
 
+		self.socketTrakerCmd = self.zmqcontext.socket(zmq.REQ)
+		self.socketTrakerCmd.connect ("tcp://localhost:%s" % servers['zmqTrakerCmdPort'])
+
 		self.zmqQueue()
 
 
@@ -78,14 +82,14 @@ class commands():
 	#external CMD
 	@threaded
 	def zmqQueue(self):
-	    socketCmd = self.zmqcontext.socket(zmq.REP)
-	    socketCmd.bind("tcp://*:%s" % servers['zmqCmdPort'])
+	    socketEngineCmd = self.zmqcontext.socket(zmq.REP)
+	    socketEngineCmd.bind("tcp://*:%s" % servers['zmqEngineCmdPort'])
 	    while self.RUN:
 		try:
-	    		message = socketCmd.recv()
+	    		message = socketEngineCmd.recv()
 		except:
 			print "Clossing ZMQ queue"
-			socketCmd.close()
+			socketEngineCmd.close()
 			return
 		#print("Received request: %s" % message)
 
@@ -93,22 +97,30 @@ class commands():
 		reply=self.cmd(message)
 
 		#  Send reply back to client
-    		socketCmd.send(str(reply))
+    		socketEngineCmd.send(str(reply))
 
 	def observerInit(self):
 		self.observer=ephem.Observer()
-		self.observer.lat=here['lat']
-		self.observer.lon=here['lon']
-		self.observer.horizon=here['horizon']
+		self.observer.lat=here['lat']*math.pi/180.
+		self.observer.lon=here['lon']*math.pi/180.
+		self.observer.horizon=ephem.degrees(here['horizon'])
 		self.observer.elev=here['elev']
 		self.observer.temp=here['temp']
 		self.observer.compute_pressure()
+		print self.observer.lat
 
 	def getObserver(self,arg):
-		observer = {'lat':self.observer.lat,'lon':self.observer.lon,\
-				'horizon':self.observer.horizon,\
+		observer = {'lat':str(ephem.degrees(self.observer.lat)),'lon':str(ephem.degrees(self.observer.lon)),\
+				'horizon':str(ephem.degrees(self.observer.horizon)),\
 				'elev':self.observer.elev,'temp':self.observer.temp}
 		return json.dumps(observer)
+
+	def getGear(self,arg):
+		data = {'acceleration':engine['acceleration'],\
+				'pointError':str(ephem.degrees(self.m.axis1.minMotorStep)),\
+				'vmax':str(ephem.degrees(self.m.axis1.vmax)),\
+				'FullTurnSteps':self.m.axis1.FullTurnSteps}
+		return json.dumps(data)
 
 	def setTrackSpeed(self,arg):
 		c=arg.split()
@@ -216,10 +228,10 @@ class commands():
 	def cmd_slew(self,arg):
 		#return values 0==OK, 1 == below Horizon
 		alt,az=self.altAz_of(self.targetRA,self.targetDEC)
-		if alt <=self.observer.horizon and False:
+		if alt <=self.observer.horizon and engine['overhorizon']:
 			print "Not slewing: Below horizon"
 			r='1'
-		if True:
+		else:
 			ra=self.hourAngle(self.targetRA)
 			print "slewing to:",self.targetRA,self.targetDEC," from:",self.RA,self.DEC
 			self.m.slew(ra,self.targetDEC)

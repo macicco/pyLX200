@@ -26,6 +26,12 @@ def getObserver():
 	reply=socketCmd.recv()
 	return reply
 
+@app.route('/getGear')
+def getGear():
+	socketCmd.send('@getGear')
+	reply=socketCmd.recv()
+	return reply
+
 @app.route('/getConfig')
 def getConfig():
 	return jsonify(Config)
@@ -49,7 +55,7 @@ if __name__ == '__main__':
 	socketStream.setsockopt(zmq.SUBSCRIBE, 'values')
 
 	socketCmd = context.socket(zmq.REQ)
-	socketCmd.connect ("tcp://localhost:%s" % servers['zmqCmdPort'])
+	socketCmd.connect ("tcp://localhost:%s" % servers['zmqEngineCmdPort'])
 
 
 

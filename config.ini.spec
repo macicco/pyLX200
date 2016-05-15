@@ -7,8 +7,10 @@ reducer = float()
 
 
 [engine]
-maxPPS = integer(max=2048)
-
+maxPPS = integer(max=1024)
+acceleration = string()
+overhorizon = boolean()
+go2rising = boolean()
 
 [here]
 lat = float()
@@ -18,10 +20,10 @@ elev = float()
 horizon = string()
 
 [servers]
-camera = string()
 tleurl = string()
 socketPort = integer()
 httpPort = integer()
-zmqCmdPort = integer()
+zmqEngineCmdPort = integer()
+zmqTrakerCmdPort = integer()
 socketsPort = integer()
 zmqStreamPort = integer()
