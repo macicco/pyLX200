@@ -292,9 +292,9 @@ class AxisDriver(axis):
 			freq=round(abs(v)/self.minMotorStep)
 			if freq  >=self.maxPPS:
 				freq=self.maxPPS
-			
+			#PWM freq change on falling edge so we need to start
 			if self.freq==0 and freq!=0:
-				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
+				self.pi.hardware_PWM(self.PIN,10,self.pulseDuty*1000000)
 				self.freq=freq
 			   	self.updatePWM=False
 			else:

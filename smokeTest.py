@@ -71,7 +71,7 @@ def costellations():
 			print >>sys.stderr, 'received "%s"' % data
 		    	#sock.sendall(':Q#')
 			sock.sendall(':MS#')
-	    		time.sleep(1)	
+	    		time.sleep(2)	
 
 		finally:
 			print >>sys.stderr, 'closing socket'
