@@ -194,6 +194,7 @@ class axis(object):
 class AxisDriver(axis):
 	def __init__(self,name,a,PIN,DIR_PIN):
 		super(AxisDriver, self).__init__(name,a)
+		self.lock = threading.Lock()
 		import pigpio
 		self.pi=pigpio.pi('cronostamper')
 		self.PIN=PIN
@@ -209,6 +210,7 @@ class AxisDriver(axis):
 		self.pulseWidth=1./float(self.maxPPS)
 		self.timestepMax=self.pulseWidth*10
 		self.timestepMin=self.pulseWidth*5
+		self.timestep=self.timestepMax
 		self.pulseDuty=0.5
 		self.minMotorStep=math.pi*2/float(self.FullTurnSteps)
 		self.vmax=self.minMotorStep/self.pulseWidth
@@ -220,8 +222,9 @@ class AxisDriver(axis):
 		self.pi.write(self.DIR_PIN, self.dire>0)
 		self.freq=0
 		self.updatePWM=False
-		self.lock = threading.Lock()
-		self.stepQueue()
+		self.deltavFine=0
+
+
 		print "StepsPerRev",self.stepsPerRevolution \
 			,"FullTurnSteps: ",self.FullTurnSteps \
 			,"PPS",1/self.pulseWidth,"Phisical:",self.minMotorStep
@@ -242,9 +245,8 @@ class AxisDriver(axis):
 		if self.log:
 			motorBeta=float(self.motorBeta)*self.minMotorStep
 			self.saveDebug(self.stepTarget-self.motorBeta,motorBeta)
-
-		if Isteps==0:
-			return		
+			#self.saveDebug(self.deltavFine,motorBeta)
+			#self.saveDebug(self.stepTarget,motorBeta)
 
 		#calculate direction of motion
 		if self.dire*Isteps<0:
@@ -254,6 +256,54 @@ class AxisDriver(axis):
 		#calculate target steps
 	   	with self.lock:
 			self.stepTarget=self.stepTarget+Isteps
+
+		self.deltavFine=ephem.degrees(self.beta-self.motorBeta*self.minMotorStep)
+		self.setPWMspeed(self.v+self.deltavFine)
+
+		'''
+		if self.v==0:
+			self.extraSteps()'''
+
+
+	def extraSteps(self):
+		deltaSteps=self.beta/self.minMotorStep
+		deltaFine=int(deltaSteps-self.motorBeta)
+		if abs(deltaFine)>=1:
+			d=math.copysign(1,deltaFine)
+			self.pi.write(self.DIR_PIN, d>0)
+			print deltaFine
+			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
+			for i in range(0,abs(deltaFine)):
+				self.pi.write(self.PIN, 1)
+				time.sleep(self.pulseWidth)
+				self.pi.write(self.PIN, 0)
+				time.sleep(self.pulseWidth)
+			self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
+
+
+	def setPWMspeed(self,v):
+		freq=0
+		#calculate direction of motion
+		if self.dire*v<0:
+			self.dire=math.copysign(1,v)
+			self.pi.write(self.DIR_PIN, self.dire>0)
+
+		with self.lock:
+			freq=round(abs(v)/self.minMotorStep)
+			if freq  >=self.maxPPS:
+				freq=self.maxPPS
+			
+			if self.freq==0 and freq!=0:
+				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
+				self.freq=freq
+			   	self.updatePWM=False
+			else:
+				self.freq=freq
+			   	self.updatePWM=True
+
+		return self.freq
+
+
 
 	def falling(self,gpio, level, tick):
 		if self.updatePWM==True:
@@ -270,49 +320,6 @@ class AxisDriver(axis):
 			dire=-1
 
 		self.motorBeta=self.motorBeta+1*dire
-
-
-	@threaded
-	def stepQueue(self):
-	  freq=0
-	  freqRest=0	
- 	  while self.RUN:
-		with self.lock:
-		   delta=self.stepTarget-self.motorBeta
-		   if abs(delta) != 0:
-			betaError=ephem.degrees(self.beta-float(self.motorBeta)*self.minMotorStep)
-			#print betaError
-			if self.v!=0:
-				ffreq=abs(self.v)/self.minMotorStep+freqRest
-				freq=round(ffreq)
-				freqRest=ffreq-freq
-			else:
-				#if self.v==0 hold the last freq value
-				#freq=self.freq
-				pass
-			if freq  >=self.maxPPS:
-				freq=self.maxPPS
-
-			if self.freq==0 and freq!=0:
-				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
-
-			self.freq=freq
-		   else:
-			self.freq=0
-
-		   self.updatePWM=True
-
-		time.sleep(self.pulseWidth)
-		'''
-		if self.freq!=0:
-			#time.sleep(self.freq/2)
-			time.sleep(self.pulseWidth)
-		else:
-			time.sleep(self.timestepMax)
-		'''
-	  print "STEPS QUEUE END"
-	  self.pi.hardware_PWM(self.PIN,0,0)
-
 
 class mount:
 	def __init__(self,a):
@@ -385,7 +392,7 @@ class mount:
 if __name__ == '__main__':
 	a=ephem.degrees('01:00:00')
 	m=mount(a)
-	vRA=ephem.degrees('00:00:00')
+	vRA=ephem.degrees('00:00:15')
 	m.trackSpeed(vRA,0)
 	RA=ephem.hours('03:00:00')
 	DEC=ephem.degrees('15:00:00')
@@ -404,3 +411,4 @@ if __name__ == '__main__':
 		time.sleep(m.axis1.timestep)
 		#m.coords()
 	m.end()
+
