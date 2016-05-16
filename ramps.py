@@ -199,7 +199,7 @@ class AxisDriver(axis):
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
-		#cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
+		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 		self.stepsPerRevolution=gear['motorStepsRevolution']*gear['microstep']*gear['reducer']
 		self.corona=gear['corona']
 		self.plate=gear['pinion']
@@ -219,8 +219,7 @@ class AxisDriver(axis):
 		self.dire=1
 		self.pi.write(self.DIR_PIN, self.dire>0)
 		self.freq=0
-		self.discarted=0
-		self.discartFlag=False
+		self.updatePWM=False
 		self.lock = threading.Lock()
 		self.stepQueue()
 		print "StepsPerRev",self.stepsPerRevolution \
@@ -242,9 +241,7 @@ class AxisDriver(axis):
 
 		if self.log:
 			motorBeta=float(self.motorBeta)*self.minMotorStep
-			#discarted=float(self.discarted)*self.minMotorStep
-			self.saveDebug(self.freq,motorBeta)
-			#self.saveDebug(self.freq*self.dire,motorBeta)
+			self.saveDebug(self.stepTarget-self.motorBeta,motorBeta)
 
 		if Isteps==0:
 			return		
@@ -259,9 +256,10 @@ class AxisDriver(axis):
 			self.stepTarget=self.stepTarget+Isteps
 
 	def falling(self,gpio, level, tick):
-		if self.discartFlag:
+		if self.updatePWM==True:
 			with self.lock:
-				self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
+				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
+				self.updatePWM==False
 
 	def stepCounter(self,gpio, level, tick):
      	    with self.lock:
@@ -274,21 +272,6 @@ class AxisDriver(axis):
 		self.motorBeta=self.motorBeta+1*dire
 
 
-		if self.discartFlag:
-			self.discarted=self.discarted+1*dire
-			print   self.name, "DISCARTED", \
-				ephem.degrees(self.discarted*self.minMotorStep),\
-				self.discarted
-
-		#Arrived. Stop PWM
-	    	if abs(self.stepTarget-self.motorBeta) == 0:
-			#self.freq=0
-			self.discartFlag=True
-			#stop PWM at falling edge
-
-
-
-
 	@threaded
 	def stepQueue(self):
 	  freq=0
@@ -297,32 +280,36 @@ class AxisDriver(axis):
 		with self.lock:
 		   delta=self.stepTarget-self.motorBeta
 		   if abs(delta) != 0:
-			#calculate direction of motion
-			if self.dire*delta<0:
-				self.dire=math.copysign(1,delta)
-				self.pi.write(self.DIR_PIN, self.dire>0)
-
+			betaError=ephem.degrees(self.beta-float(self.motorBeta)*self.minMotorStep)
+			#print betaError
 			if self.v!=0:
 				ffreq=abs(self.v)/self.minMotorStep+freqRest
 				freq=round(ffreq)
 				freqRest=ffreq-freq
 			else:
 				#if self.v==0 hold the last freq value
+				#freq=self.freq
 				pass
 			if freq  >=self.maxPPS:
 				freq=self.maxPPS
+
+			if self.freq==0 and freq!=0:
+				self.pi.hardware_PWM(self.PIN,freq,self.pulseDuty*1000000)
+
 			self.freq=freq
-			self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
-		   	self.discartFlag=False
 		   else:
 			self.freq=0
-			self.discartFlag=True
-			self.pi.hardware_PWM(self.PIN,0,self.pulseDuty*1000000)
+
+		   self.updatePWM=True
+
+		time.sleep(self.pulseWidth)
+		'''
 		if self.freq!=0:
 			#time.sleep(self.freq/2)
 			time.sleep(self.pulseWidth)
 		else:
 			time.sleep(self.timestepMax)
+		'''
 	  print "STEPS QUEUE END"
 	  self.pi.hardware_PWM(self.PIN,0,0)
 
@@ -398,10 +385,18 @@ class mount:
 if __name__ == '__main__':
 	a=ephem.degrees('01:00:00')
 	m=mount(a)
-	vRA=ephem.degrees('00:00:01')
+	vRA=ephem.degrees('00:00:00')
 	m.trackSpeed(vRA,0)
-	RA=ephem.hours('02:00:00')
+	RA=ephem.hours('03:00:00')
 	DEC=ephem.degrees('15:00:00')
+	m.slew(RA,DEC)
+	t=0
+	while t<15:
+		t=t+m.axis1.timestep
+		time.sleep(m.axis1.timestep)
+		#m.coords()
+	RA=ephem.hours('01:00:00')
+	DEC=ephem.degrees('-15:00:00')
 	m.slew(RA,DEC)
 	t=0
 	while t<15:
