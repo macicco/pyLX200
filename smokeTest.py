@@ -7,22 +7,30 @@ import time
 import catalogues
 import ephem
 import math
+import zmq
 from config import *
 
 
 pi=math.pi
 H=catalogues.HiparcosCatalogue()
 
-HOST = 'localhost'   # Symbolic name meaning all available interfaces
-PORT = servers['socketPort'] # Arbitrary non-privileged port
 
-# Create a TCP/IP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Connect the socket to the port where the server is listening
-server_address = (HOST, PORT)
-print >>sys.stderr, 'connecting to %s port %s' % server_address
-sock.connect(server_address)
+zmqFlag=True #use ZMQ socket if False use INET sockets
+
+if zmqFlag:
+	context = zmq.Context()
+	sock = context.socket(zmq.REQ)
+	sock.connect ("tcp://localhost:%s" % servers['zmqEngineCmdPort'])
+else:
+	HOST = 'localhost'   # Symbolic name meaning all available interfaces
+	PORT = servers['socketPort'] # Arbitrary non-privileged port
+	# Create a TCP/IP socket
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	# Connect the socket to the port where the server is listening
+	server_address = (HOST, PORT)
+	print >>sys.stderr, 'connecting to %s port %s' % server_address
+	sock.connect(server_address)
 
 
 def drawCostellationsFigures(costellations=['Aur']):
@@ -47,6 +55,12 @@ def drawCostellationsFigures(costellations=['Aur']):
 				coords.append([cmd1,cmd2])
 	return coords
 
+def recv():
+	if zmqFlag:
+		return sock.recv()
+	else:
+		return sock.recv(16)
+
 def costellations():
 	RUN=True
 	while RUN:
@@ -59,19 +73,20 @@ def costellations():
 			print coord
 			r_cmd=':Sr '+coord[0]
 			print >>sys.stderr, 'sending "%s"' % r_cmd
-			sock.sendall(r_cmd+'#')
+			sock.send(r_cmd+'#')
 			time.sleep(0.1)	
-			data = sock.recv(16)
+			data=recv()
 			print >>sys.stderr, 'received "%s"' % data
 			d_cmd=':Sd '+coord[1]
 			print >>sys.stderr, 'sending "%s"' % d_cmd
-			sock.sendall(d_cmd+'#')
+			sock.send(d_cmd+'#')
 			time.sleep(0.1)	
-			data = sock.recv(16)
+			data = recv()
 			print >>sys.stderr, 'received "%s"' % data
 		    	#sock.sendall(':Q#')
-			sock.sendall(':MS#')
-	    		time.sleep(2)	
+			sock.send(':MS#')
+			data = recv()
+	    		time.sleep(5)	
 
 		finally:
 			print >>sys.stderr, 'closing socket'

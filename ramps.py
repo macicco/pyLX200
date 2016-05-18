@@ -143,7 +143,7 @@ class axis(object):
 		self.t_slope=self.v/self.acceleration  
 
 		#check if arrived to target	
-		if  abs(self.delta) <= self.pointError:
+		if  abs(self.delta) <= self.pointError and abs(self.v)<=self.pointError:
 			self.slewend=True
 			self.v=self.vtracking
 			self.a=0
@@ -223,6 +223,7 @@ class AxisDriver(axis):
 		self.freq=0
 		self.updatePWM=False
 		self.deltavFine=0
+		self.PWMwatchdog=0
 
 
 		print "StepsPerRev",self.stepsPerRevolution \
@@ -249,10 +250,12 @@ class AxisDriver(axis):
 			#self.saveDebug(self.stepTarget,motorBeta)
 
 		#calculate direction of motion
+		'''	Now is done in setPWMFine()
+
 		if self.dire*Isteps<0:
 			self.dire=math.copysign(1,Isteps)
 			self.pi.write(self.DIR_PIN, self.dire>0)
-
+		'''
 		#calculate target steps
 	   	with self.lock:
 			self.stepTarget=self.stepTarget+Isteps
@@ -264,7 +267,8 @@ class AxisDriver(axis):
 		if self.v==0:
 			self.extraSteps()'''
 
-
+	#NOT IN USE. 
+	#do extra steeps to get stepTarget 
 	def extraSteps(self):
 		deltaSteps=self.beta/self.minMotorStep
 		deltaFine=int(deltaSteps-self.motorBeta)
@@ -283,29 +287,33 @@ class AxisDriver(axis):
 
 	def setPWMspeed(self,v):
 		freq=0
-		#calculate direction of motion
-		if self.dire*v<0:
-			self.dire=math.copysign(1,v)
-			self.pi.write(self.DIR_PIN, self.dire>0)
-
 		with self.lock:
+			#calculate direction of motion
+			if self.dire*v<0:
+				self.dire=math.copysign(1,v)
+				self.pi.write(self.DIR_PIN, self.dire>0)
+
 			freq=round(abs(v)/self.minMotorStep)
 			if freq  >=self.maxPPS:
 				freq=self.maxPPS
-			#PWM freq change on falling edge so we need to start
-			if self.freq==0 and freq!=0:
+
+			#PWM freq change on falling edge so we need to start if stopped
+			#if (self.freq==0 or self.PWMwatchdog>10) and freq!=0:
+			if (self.freq==0) and freq!=0:
+				#print self.name,"START PWM",freq,self.freq
 				self.pi.hardware_PWM(self.PIN,10,self.pulseDuty*1000000)
 				self.freq=freq
 			   	self.updatePWM=False
 			else:
 				self.freq=freq
 			   	self.updatePWM=True
-
+		self.PWMwatchdog+=1
 		return self.freq
 
 
 
 	def falling(self,gpio, level, tick):
+		self.PWMwatchdog=0
 		if self.updatePWM==True:
 			with self.lock:
 				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)

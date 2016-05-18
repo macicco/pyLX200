@@ -17,12 +17,13 @@ class tracker:
 		self.CMDs={ 
 		"@readTLEfile":self.readTLEfile,  \
 		"@loadTLE": self.loadTLE,  \
-		"@go2TLE": self.go2TLE  \
+		"@setTLE2follow": self.setTLE2follow  \
 		}
 		self.timestep=0.1
 		self.context = zmq.Context()
 		self.socketStream = self.context.socket(zmq.SUB)
-		#CONFLATE: get only one message (do not work with the stock version of zmq, works from ver 4.1.4)
+		#CONFLATE: get only one message 
+		#(do not work with the stock version of zmq, works from ver 4.1.4)
 		self.socketStream.setsockopt(zmq.CONFLATE, 1)
 		self.socketStream.connect ("tcp://localhost:%s" % servers['zmqStreamPort'])
 		self.socketStream.setsockopt(zmq.SUBSCRIBE, 'values')
@@ -42,7 +43,7 @@ class tracker:
 	def loadTLE(self,arg):
 		pass
 
-	def go2TLE(self,arg):
+	def setTLE2follow(self,arg):
 		pass
 
 
@@ -66,13 +67,13 @@ class tracker:
 
 	def trackSatellite(self,sat):
 		error=self.pointError
-		satRA,satDEC = self.go2sat(sat)
+		satRA,satDEC = self.satPosition(sat)
 		vsatRA,vsatDEC = self.satSpeed(sat)
 		self.sendTrackSpeed(vsatRA,vsatDEC)
 		errorRA=ephem.degrees(abs(satRA-self.RA))
 		errorDEC=ephem.degrees(abs(satDEC-self.DEC))
 		if abs(errorRA)>=error or abs(errorDEC)>=error:
-			print "Too much error. Slewing",(errorRA),(errorDEC),str(error)
+			print "Too much error. Slewing",errorRA,errorDEC,str(error)
 			self.sendSlew(satRA,satDEC)
 		else:
 			pass
@@ -133,7 +134,7 @@ class tracker:
 			#self.trackSatellite('DEIMOS 2')	
 			#self.circle(0,0,ephem.degrees('0:30:00'),0.1)
 
-	def go2sat(self,sat):
+	def satPosition(self,sat):
 			observer=self.observer
 			s=self.TLEs.TLE(sat)
 			observer.date=ephem.Date(datetime.datetime.utcnow())
