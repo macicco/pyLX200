@@ -41,7 +41,7 @@ class axis(object):
 		self.name=name
 		if self.log:
 			self.logfile=open(str(self.name)+".log",'w')
-			line="T timestep timesleep vmax beta_target, beta v a motorBeta steps\n"
+			line="T timestep timesleep vmax beta_target beta v a motorBeta steps\r\n"
 			self.logfile.write(line)
 
 
@@ -143,7 +143,8 @@ class axis(object):
 		self.t_slope=self.v/self.acceleration  
 
 		#check if arrived to target	
-		if  abs(self.delta) <= self.pointError and abs(self.v)<=self.pointError:
+		#if  abs(self.delta) <= self.pointError and abs(self.v)<=self.pointError:
+		if  abs(self.delta) <= self.pointError:
 			self.slewend=True
 			self.v=self.vtracking
 			self.a=0
@@ -186,7 +187,7 @@ class axis(object):
 			self.saveDebug(steps,self.motorBeta)
 		
 	def saveDebug(self,steps,motorBeta):
-		line="%g %g %g %g %g %g %g %g %g %g\n" % (time.time()-self.T0,self.timestep, \
+		line="%g %g %g %g %g %g %g %g %g %g\r\n" % (time.time()-self.T0,self.timestep, \
 			self.timesleep,self._vmax,self.beta_target,self.beta,self.v,self.a,motorBeta,steps)
 		self.logfile.write(line)
 
