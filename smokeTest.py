@@ -65,6 +65,12 @@ def costellations():
 	RUN=True
 	while RUN:
 		time.sleep(0.1)	
+		if zmqFlag:
+			vRA='-00:00:15'
+			vDEC='00:00:00'
+			sock.send('@setTrackSpeed '+str(vRA)+' '+str(vDEC))
+			reply=sock.recv()
+
 		coste=['Tau','Gem','Cnc','Leo','Vir','Lib','Sco','Sgr','Cap','Aqr','Psc','Ari']
 		coords=drawCostellationsFigures(coste)
 		try:

@@ -225,6 +225,7 @@ class AxisDriver(axis):
 		self.PWMwatchdog=0
 		self.pi.set_mode(self.PIN, pigpio.OUTPUT)
 		self.pi.set_mode(self.DIR_PIN, pigpio.OUTPUT)
+		self.pi.hardware_PWM(self.PIN,10,0)
 		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
 		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 
@@ -303,19 +304,19 @@ class AxisDriver(axis):
 			#PWM freq change on falling edge so we need to start if stopped
 			#if (self.freq==0 or self.PWMwatchdog>10) and freq!=0:
 			'''
-			realfreq=self.pi.get_PWM_frequency(self.PIN)
+			realfreq=self.pi.get_PWM_dutycycle(self.PIN)
 			if realfreq==800 and self.freq<800:
 				realfreq=0
 			print "PWMFREQ",realfreq
 			'''
-			if (realfreq==0) and freq!=0:
+			PWMstopped=(self.pi.get_PWM_dutycycle(self.PIN) == 0)
+			#if (self.freq==0) and freq!=0:
+			if PWMstopped and freq!=0:
 				print self.name,"START PWM",freq,self.freq,self.PWMwatchdog
 				if freq<10:
-					f=10
-				else:
-					f=freq
-				self.pi.hardware_PWM(self.PIN,f,self.pulseDuty*1000000)
+					freq=10
 				self.freq=freq
+				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
 			   	self.updatePWM=False
 			else:
 				self.freq=freq
@@ -328,7 +329,10 @@ class AxisDriver(axis):
 	def falling(self,gpio, level, tick):
 		with self.lock:
 			if self.updatePWM==True:
-				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
+				if self.freq!=0:
+					self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
+				else:
+					self.pi.hardware_PWM(self.PIN,10,0)
 				self.updatePWM==False
 
 	def stepCounter(self,gpio, level, tick):
