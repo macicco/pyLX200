@@ -200,8 +200,6 @@ class AxisDriver(axis):
 		self.pi=pigpio.pi('cronostamper')
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
-		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
-		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 		self.stepsPerRevolution=gear['motorStepsRevolution']*gear['microstep']*gear['reducer']
 		self.corona=gear['corona']
 		self.plate=gear['pinion']
@@ -225,7 +223,10 @@ class AxisDriver(axis):
 		self.updatePWM=False
 		self.deltavFine=0
 		self.PWMwatchdog=0
-
+		self.pi.set_mode(self.PIN, pigpio.OUTPUT)
+		self.pi.set_mode(self.DIR_PIN, pigpio.OUTPUT)
+		cb1 = self.pi.callback(self.PIN, pigpio.RISING_EDGE, self.stepCounter)
+		cb2 = self.pi.callback(self.PIN, pigpio.FALLING_EDGE, self.falling)
 
 		print "StepsPerRev",self.stepsPerRevolution \
 			,"FullTurnSteps: ",self.FullTurnSteps \
@@ -258,11 +259,11 @@ class AxisDriver(axis):
 			self.pi.write(self.DIR_PIN, self.dire>0)
 		'''
 		#calculate target steps
-	   	with self.lock:
-			self.stepTarget=self.stepTarget+Isteps
+	   	self.stepTarget=self.stepTarget+Isteps
 
 		self.deltavFine=ephem.degrees(self.beta-self.motorBeta*self.minMotorStep)
 		self.setPWMspeed(self.v+self.deltavFine)
+		#self.setPWMspeed(self.v)
 
 		'''
 		if self.v==0:
@@ -287,8 +288,8 @@ class AxisDriver(axis):
 
 
 	def setPWMspeed(self,v):
-		freq=0
 		with self.lock:
+			freq=0
 			#calculate direction of motion
 			if self.dire*v<0:
 				self.dire=math.copysign(1,v)
@@ -298,37 +299,49 @@ class AxisDriver(axis):
 			if freq  >=self.maxPPS:
 				freq=self.maxPPS
 
+
 			#PWM freq change on falling edge so we need to start if stopped
 			#if (self.freq==0 or self.PWMwatchdog>10) and freq!=0:
-			if (self.freq==0) and freq!=0:
-				#print self.name,"START PWM",freq,self.freq
-				self.pi.hardware_PWM(self.PIN,10,self.pulseDuty*1000000)
+			'''
+			realfreq=self.pi.get_PWM_frequency(self.PIN)
+			if realfreq==800 and self.freq<800:
+				realfreq=0
+			print "PWMFREQ",realfreq
+			'''
+			if (realfreq==0) and freq!=0:
+				print self.name,"START PWM",freq,self.freq,self.PWMwatchdog
+				if freq<10:
+					f=10
+				else:
+					f=freq
+				self.pi.hardware_PWM(self.PIN,f,self.pulseDuty*1000000)
 				self.freq=freq
 			   	self.updatePWM=False
 			else:
 				self.freq=freq
 			   	self.updatePWM=True
-		self.PWMwatchdog+=1
+			self.PWMwatchdog+=1
 		return self.freq
 
 
 
 	def falling(self,gpio, level, tick):
-		self.PWMwatchdog=0
-		if self.updatePWM==True:
-			with self.lock:
+		with self.lock:
+			if self.updatePWM==True:
 				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
 				self.updatePWM==False
 
 	def stepCounter(self,gpio, level, tick):
-     	    with self.lock:
+	    #avoid to put locks here. Danger of miss steps!
+     	    #with self.lock:
+		self.PWMwatchdog=0
 		dire=self.pi.read(self.DIR_PIN)
 		if dire==1:
 			dire=1
 		else:
 			dire=-1
-
 		self.motorBeta=self.motorBeta+1*dire
+
 
 class mount:
 	def __init__(self,a):
