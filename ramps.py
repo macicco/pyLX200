@@ -253,7 +253,7 @@ class AxisDriver(axis):
 			#self.saveDebug(self.stepTarget,motorBeta)
 
 		#calculate direction of motion
-		'''	Now is done in setPWMFine()
+		'''	Now is done in setPWMSpeed()
 
 		if self.dire*Isteps<0:
 			self.dire=math.copysign(1,Isteps)
@@ -313,7 +313,7 @@ class AxisDriver(axis):
 			#if (self.freq==0) and freq!=0:
 			if PWMstopped and freq!=0:
 				print self.name,"START PWM",freq,self.freq,self.PWMwatchdog
-				if freq<10:
+				if freq<10 and False:
 					freq=10
 				self.freq=freq
 				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
