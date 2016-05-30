@@ -82,11 +82,12 @@ gear=Config['gear']
 here=Config['here']
 servers=Config['servers']
 engine=Config['engine']
+'''
 print here
 print gear
 print servers
 print engine
-
+'''
 
 
 

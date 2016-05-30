@@ -17,7 +17,8 @@ class tracker:
 		self.CMDs={ 
 		"@readTLEfile":self.readTLEfile,  \
 		"@loadTLE": self.loadTLE,  \
-		"@setTLE2follow": self.setTLE2follow  \
+		"@setTLE2follow": self.setTLE2follow,  \
+		":test": self.test,  \
 		}
 		self.timestep=0.1
 		self.context = zmq.Context()
@@ -30,12 +31,16 @@ class tracker:
 	
 		self.socketEngineCmd = self.context.socket(zmq.REQ)
 		self.socketEngineCmd.connect ("tcp://localhost:%s" % servers['zmqEngineCmdPort'])
+		self.RUN=True		
+		self.zmqQueue()
+		self.register()
 		self.gearInit()
 		self.observerInit()
 		self.TLEs=tle.TLEhandler()
 		self.a=0
 		self.go2rise=False
-		self.RUN=True
+
+
 
 	def readTLEfile(self,arg):
 		pass
@@ -46,6 +51,19 @@ class tracker:
 	def setTLE2follow(self,arg):
 		pass
 
+
+	def test(self,arg):
+		print "TEST"
+		return
+
+	def register(self):
+		modulecmd=str(self.CMDs.keys())
+		cmdjson=json.dumps({'module':'tracker','port':servers['zmqTrakerCmdPort'],'moduleCMDs':modulecmd})
+		cmd='@registrar '+cmdjson
+		print cmd
+		self.socketEngineCmd.send(cmd)
+		reply=json.loads(self.socketEngineCmd.recv())
+		print reply
 
 	def observerInit(self):
 		self.socketEngineCmd.send('@getObserver')
@@ -101,9 +119,11 @@ class tracker:
 
 	@threaded
 	def zmqQueue(self):
-	    socketTrakerCmd = self.zmqcontext.socket(zmq.REP)
+	    socketTrakerCmd = self.context.socket(zmq.REP)
 	    socketTrakerCmd.bind("tcp://*:%s" % servers['zmqTrakerCmdPort'])
+	    print "tracker CMD queue init"
 	    while self.RUN:
+		print "waiting"
 		try:
 	    		message = socketTrakerCmd.recv()
 		except:
@@ -111,13 +131,27 @@ class tracker:
 			socketTrakerCmd.close()
 			return
 		#print("Received request: %s" % message)
-
+		print "zmqqqqq"
 		#  Do some 'work'
 		reply=self.cmd(message)
 
 		#  Send reply back to client
     		socketTrakerCmd.send(str(reply))
 
+	def cmd(self,cmd):
+                for c in self.CMDs.keys():
+			l=len(c)
+			if (cmd[:l]==c):
+				arg=cmd[l:].strip()
+				print "K",c,"KK",cmd,"KKK",arg
+				return self.CMDs[c](arg)
+				break
+
+		return self.cmd_dummy(cmd)
+
+	def cmd_dummy(self,arg):
+		print "DUMMY CMD:",arg
+		return 
 
 	def run(self):
 		while self.RUN:
@@ -130,7 +164,7 @@ class tracker:
 			self.DEC=ephem.degrees(self.socketEngineCmd.recv())
 			#self.trackSatellite('METEOSAT-7')
 			#self.trackSatellite('KAZSAT 3')
-			self.trackSatellite('ISS')
+			#self.trackSatellite('ISS')
 			#self.trackSatellite('DEIMOS 2')	
 			#self.circle(0,0,ephem.degrees('0:30:00'),0.1)
 

@@ -16,7 +16,7 @@ def threaded(fn):
 #virtual class. It must be used to derive the actual driver class
 #which implemente the motor driver
 class axis(object):
-	def __init__(self,name,a):
+	def __init__(self,name):
 		self.log=True
 		self.setName(name)
 		self.pointError=ephem.degrees(0)
@@ -26,7 +26,7 @@ class axis(object):
 		self.acceleration=ephem.degrees(engine['acceleration'])
 		self.a=ephem.degrees(0)
 		self.v=ephem.degrees(0)
-		self.vmax=ephem.degrees(self.v)
+		self.vmax=ephem.degrees(ephem.degrees('05:00:00'))
 		self.beta=ephem.degrees(0)
 		self.beta_target=ephem.degrees(0)
 		self.t2target=0
@@ -180,11 +180,10 @@ class axis(object):
 		return steps
 
 	def doSteps(self,steps):
-		self.motorBeta=self.motorBeta+steps
 		#sleep
 		time.sleep(self.timesleep)
 		if self.log:
-			self.saveDebug(steps,self.motorBeta)
+			self.saveDebug(steps,0)
 		
 	def saveDebug(self,steps,motorBeta):
 		line="%g %g %g %g %g %g %g %g %g %g\r\n" % (time.time()-self.T0,self.timestep, \
@@ -193,8 +192,8 @@ class axis(object):
 
 #Stepper raspberry implementation
 class AxisDriver(axis):
-	def __init__(self,name,a,PIN,DIR_PIN):
-		super(AxisDriver, self).__init__(name,a)
+	def __init__(self,name,PIN,DIR_PIN):
+		super(AxisDriver, self).__init__(name)
 		self.lock = threading.Lock()
 		import pigpio
 		self.pi=pigpio.pi('cronostamper')
@@ -243,6 +242,7 @@ class AxisDriver(axis):
 		steps=delta/self.minMotorStep+self.stepsRest
 		Isteps=round(steps)
 
+
 		#acumultate the fractional part to the next step
 		self.stepsRest=steps-Isteps
 
@@ -253,12 +253,9 @@ class AxisDriver(axis):
 			#self.saveDebug(self.stepTarget,motorBeta)
 
 		#calculate direction of motion
-		'''	Now is done in setPWMSpeed()
+		'''Now is done in setPWMSpeed() '''
 
-		if self.dire*Isteps<0:
-			self.dire=math.copysign(1,Isteps)
-			self.pi.write(self.DIR_PIN, self.dire>0)
-		'''
+
 		#calculate target steps
 	   	self.stepTarget=self.stepTarget+Isteps
 
@@ -300,23 +297,15 @@ class AxisDriver(axis):
 			if freq  >=self.maxPPS:
 				freq=self.maxPPS
 
-
 			#PWM freq change on falling edge so we need to start if stopped
-			#if (self.freq==0 or self.PWMwatchdog>10) and freq!=0:
-			'''
-			realfreq=self.pi.get_PWM_dutycycle(self.PIN)
-			if realfreq==800 and self.freq<800:
-				realfreq=0
-			print "PWMFREQ",realfreq
-			'''
 			PWMstopped=(self.pi.get_PWM_dutycycle(self.PIN) == 0)
-			#if (self.freq==0) and freq!=0:
-			if PWMstopped and freq!=0:
-				print self.name,"START PWM",freq,self.freq,self.PWMwatchdog
-				if freq<10 and False:
-					freq=10
+			if (PWMstopped or freq<10) and freq!=0:
 				self.freq=freq
 				self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
+				'''if self.freq!=0:
+					self.pi.hardware_PWM(self.PIN,self.freq,self.pulseDuty*1000000)
+				else:
+					self.pi.hardware_PWM(self.PIN,10,0)'''
 			   	self.updatePWM=False
 			else:
 				self.freq=freq
@@ -348,9 +337,16 @@ class AxisDriver(axis):
 
 
 class mount:
-	def __init__(self,a):
-		self.axis1=AxisDriver('RA',a,12,4)
-		self.axis2=AxisDriver('DEC',a,13,5)
+	def __init__(self):
+		simulation=False
+		if simulation:
+			self.axis1=axis('RA')
+			self.axis2=axis('DEC')
+		else:
+			self.axis1=AxisDriver('RA',12,4)
+			self.axis2=AxisDriver('DEC',13,5)
+
+
 		self.run()
 
 	def run(self):					
@@ -416,9 +412,8 @@ class mount:
 
 
 if __name__ == '__main__':
-	a=ephem.degrees('01:00:00')
-	m=mount(a)
-	vRA=ephem.degrees('00:00:15')
+	m=mount()
+	vRA=ephem.degrees('-00:00:15')
 	m.trackSpeed(vRA,0)
 	RA=ephem.hours('03:00:00')
 	DEC=ephem.degrees('15:00:00')

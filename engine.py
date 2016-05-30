@@ -45,8 +45,11 @@ class commands():
   		"@getGear": self.getGear, \
   		"@getRA": self.getRA, \
   		"@getDEC": self.getDEC, \
-  		"@setTrackSpeed": self.setTrackSpeed \
+  		"@setTrackSpeed": self.setTrackSpeed, \
+  		"@registrar": self.registrar, \
+  		"!": self.exeModuleCmd \
 		}
+		self.modules={}
 		self.observerInit()
 		self.targetRA=ephem.hours(0)
 		self.targetDEC=ephem.degrees(0)
@@ -63,7 +66,7 @@ class commands():
 
 		self.pulseStep=ephem.degrees('00:00:01')
 		a=ephem.degrees('00:20:00')
-		self.m=ramps.mount(a)
+		self.m=ramps.mount()
 		vRA=-ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
@@ -72,8 +75,7 @@ class commands():
 		self.socketStream = self.zmqcontext.socket(zmq.PUB)
 		self.socketStream.bind("tcp://*:%s" % servers['zmqStreamPort'])
 
-		self.socketTrakerCmd = self.zmqcontext.socket(zmq.REQ)
-		self.socketTrakerCmd.connect ("tcp://localhost:%s" % servers['zmqTrakerCmdPort'])
+		self.modulesSockets={}
 
 		self.zmqQueue()
 
@@ -98,6 +100,32 @@ class commands():
 
 		#  Send reply back to client
     		socketEngineCmd.send(str(reply))
+
+	def registrar(self,arg):
+		r=json.loads(arg)
+		module=r['module']
+		print r
+		self.modules[module]=r['moduleCMDs']
+		print self.modules[module]
+		socketCmd = self.zmqcontext.socket(zmq.REQ)
+		socketCmd.connect ("tcp://localhost:%s" % r['port'])
+		self.modulesSockets[module]=socketCmd
+		return json.dumps({'status':'OK'})
+
+	def exeModuleCmd(self,arg):
+		s=arg.split()
+		if len(s)==0:
+			return 0
+		module=s[0]
+		if not (module in self.modules.keys()):
+			return 0
+		cmd=s[1:]
+		print module
+		print cmd
+		self.modulesSockets[module].send(':test')
+		reply=self.modulesSockets[module].recv()
+		return reply
+		
 
 	def observerInit(self):
 		self.observer=ephem.Observer()

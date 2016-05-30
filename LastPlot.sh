@@ -13,10 +13,10 @@ set key autotitle columnhead
 set y2tics
 set autoscale y2
 set title "RA Axis"
-plot "lastRA.log" u 1:5 w lines,"lastRA.log" u 1:6 w lines lw 2,"lastRA.log" u 1:9 w lines lw 2  
+plot "lastRA.log" u 1:5 w lines,"lastRA.log" u 1:6 w points lw 2,"lastRA.log" u 1:9 w po lw 2  
 set output "DEC.png"
 set title "DEC Axis"
 set key autotitle columnhead
-plot "lastDEC.log" u 1:5 w lines,"lastDEC.log" u 1:6 w lines lw 2,"lastDEC.log" u 1:9 w lines lw 2
+plot "lastDEC.log" u 1:5 w lines,"lastDEC.log" u 1:6 w po lw 2,"lastDEC.log" u 1:9 w po lw 2
 
 EOF
