@@ -120,7 +120,7 @@ class tracker:
 	@threaded
 	def zmqQueue(self):
 	    socketTrakerCmd = self.context.socket(zmq.REP)
-	    socketTrakerCmd.bind("tcp://*:%s" % servers['zmqTrakerCmdPort'])
+	    socketTrakerCmd.bind("tcp://*:%s" % servers['zmqTrackerCmdPort'])
 	    print "tracker CMD queue init"
 	    while self.RUN:
 		print "waiting"

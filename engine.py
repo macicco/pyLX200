@@ -13,7 +13,7 @@ import json
 from config import *
 
 
-class commands():
+class engine():
 	def __init__(self):
 		print "Conductor create"
 		self.CMDs={ 
@@ -356,7 +356,7 @@ class commands():
 
 
 if __name__ == '__main__':
-  	m=commands()
+  	m=engine()
 	#m.run()
 	try:
 		m.run()
