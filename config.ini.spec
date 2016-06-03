@@ -25,5 +25,6 @@ socketPort = integer()
 httpPort = integer()
 zmqEngineCmdPort = integer()
 zmqTrackerCmdPort = integer()
-socketsPort = integer()
-zmqStreamPort = integer()
+zmqJoystickCmdPort = integer()
+zmqhttpCmdPort = integer()
+

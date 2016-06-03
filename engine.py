@@ -8,15 +8,15 @@ import time,datetime
 import ramps
 import tle
 import math
-import zmq
 import json
 from config import *
+import moduleSkull
 
-
-class engine():
+class mainengine(moduleSkull.module):
 	def __init__(self):
-		print "Conductor create"
-		self.CMDs={ 
+		port=servers['zmqEngineCmdPort']
+		super(mainengine,self).__init__('mainengine',port)
+		CMDs={ 
 		chr(6):self.cmd_ack,  \
 		":info": self.cmd_info,  \
   		":FirmWareDate": self.cmd_firware_date,  \
@@ -46,10 +46,10 @@ class engine():
   		"@getRA": self.getRA, \
   		"@getDEC": self.getDEC, \
   		"@setTrackSpeed": self.setTrackSpeed, \
-  		"@registrar": self.registrar, \
-  		"!": self.exeModuleCmd \
+  		"@values": self.values 
 		}
-		self.modules={}
+		self.valuesmsg ={}
+		self.addCMDs(CMDs)
 		self.observerInit()
 		self.targetRA=ephem.hours(0)
 		self.targetDEC=ephem.degrees(0)
@@ -62,70 +62,15 @@ class engine():
 		self.alt=star.alt
 		self.az=star.az
 
-		self.RUN=True
-
 		self.pulseStep=ephem.degrees('00:00:01')
 		a=ephem.degrees('00:20:00')
 		self.m=ramps.mount()
 		vRA=-ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
-		self.zmqcontext = zmq.Context()
-
-		self.socketStream = self.zmqcontext.socket(zmq.PUB)
-		self.socketStream.bind("tcp://*:%s" % servers['zmqStreamPort'])
-
-		self.modulesSockets={}
-
-		self.zmqQueue()
 
 
-	#this thread is responsible for all the 
-	#external CMD
-	@threaded
-	def zmqQueue(self):
-	    socketEngineCmd = self.zmqcontext.socket(zmq.REP)
-	    socketEngineCmd.bind("tcp://*:%s" % servers['zmqEngineCmdPort'])
-	    while self.RUN:
-		try:
-	    		message = socketEngineCmd.recv()
-		except:
-			print "Clossing ZMQ queue"
-			socketEngineCmd.close()
-			return
-		#print("Received request: %s" % message)
 
-		#  Do some 'work'
-		reply=self.cmd(message)
-
-		#  Send reply back to client
-    		socketEngineCmd.send(str(reply))
-
-	def registrar(self,arg):
-		r=json.loads(arg)
-		module=r['module']
-		print r
-		self.modules[module]=r['moduleCMDs']
-		print self.modules[module]
-		socketCmd = self.zmqcontext.socket(zmq.REQ)
-		socketCmd.connect ("tcp://localhost:%s" % r['port'])
-		self.modulesSockets[module]=socketCmd
-		return json.dumps({'status':'OK'})
-
-	def exeModuleCmd(self,arg):
-		s=arg.split()
-		if len(s)==0:
-			return 0
-		module=s[0]
-		if not (module in self.modules.keys()):
-			return 0
-		cmd=s[1:]
-		print module
-		print cmd
-		self.modulesSockets[module].send(':test')
-		reply=self.modulesSockets[module].recv()
-		return reply
-		
 
 	def observerInit(self):
 		self.observer=ephem.Observer()
@@ -148,6 +93,7 @@ class engine():
 				'pointError':str(ephem.degrees(self.m.axis1.minMotorStep)),\
 				'vmax':str(ephem.degrees(self.m.axis1.vmax)),\
 				'FullTurnSteps':self.m.axis1.FullTurnSteps}
+		print data
 		return json.dumps(data)
 
 	def setTrackSpeed(self,arg):
@@ -156,11 +102,6 @@ class engine():
 		vDEC=c[1]
 		self.m.trackSpeed(vRA,vDEC)
 
-    	def end(self):
-        	print "Ending.."
-		self.RUN=False
-		self.m.end()
-		self.zmqcontext.term()
 
 
 	def altAz_of(self,ra,dec):
@@ -177,7 +118,7 @@ class engine():
 			dec=self.getDEC('')
 			#np=ephem.Equatorial(ra,dec,epoch=ephem.now()) #!bad
 			self.alt,self.az=self.altAz_of(ra,dec)
-			msg = {'time':str(self.observer.date),'LST':str(self.sideral),\
+			self.valuesmsg = {'time':str(self.observer.date),'LST':str(self.sideral),\
 				'RA':str(self.RA),'DEC':str(self.DEC),\
 				'ALT':str(self.alt),'AZ':str(self.az),\
 				'targetRA':str(self.targetRA),'targetDEC':str(self.targetDEC),\
@@ -185,12 +126,16 @@ class engine():
 				'trackingSpeedRA':str(self.m.axis1.vtracking),'trackingSpeedDEC':str(self.m.axis2.vtracking),\
 				'slewendRA':str(self.m.axis1.slewend),'slewendDEC':str(self.m.axis2.slewend)\
 				}
-			self.socketStream.send(mogrify('values',msg))
+			#self.socketStream.send(mogrify('values',msg))
 			if False:
 				if self.alt<=ephem.degrees('10:00:00'):
 					self.cmd_stopSlew('')
 		self.end()
 		print "MOTORS STOPPED"
+
+	def values(self,arg):
+		return mogrify('values',self.valuesmsg)
+
 
 	def cmd(self,cmd):
                 for c in self.CMDs.keys():
@@ -203,11 +148,6 @@ class engine():
 
 		return self.cmd_dummy(cmd)
 
-
-
-	def cmd_dummy(self,arg):
-		print "DUMMY CMD:",arg
-		return 
 
 	def cmd_ack(self,arg):
 		return "P"
@@ -356,7 +296,7 @@ class engine():
 
 
 if __name__ == '__main__':
-  	m=engine()
+  	m=mainengine()
 	#m.run()
 	try:
 		m.run()

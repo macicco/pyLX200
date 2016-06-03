@@ -9,6 +9,8 @@ set y2tics
 set autoscale y2
 set title "RA Axis"
 plot "RA.log" u 1:2 w steps,"RA.log" u 1:3 w steps,"RA.log" u 1:4 w lines,"RA.log" u 1:5 w lines,"RA.log" u 1:6 w lines lw 2,"RA.log" u 1:7 w lines lw 2,"RA.log" u 1:8 w lines lw 2,"RA.log" u 1:9 w lines lw 2   ,"RA.log" u 1:10 w lines lw 2 axes x1y2
+pause 1
+reread
 set output "DEC.png"
 set title "DEC Axis"
 set key autotitle columnhead

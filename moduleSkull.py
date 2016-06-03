@@ -16,17 +16,12 @@ class module(object):
 		self.modulename=name
 		print name," listen CMDs on:",port
 		self.zmqcontext = zmq.Context()
-		if hubport:	    
-			print name," sending CMDs to:",hubport
-			self.hasParent=True
-			self.hubCmdPort=hubport
-		    	self.socketHUBCmd = self.zmqcontext.socket(zmq.REQ)
-		    	self.socketHUBCmd.connect("tcp://localhost:%s" % self.hubCmdPort)
-		else:
-			self.hasParent=False
 		self.CMDs={ 
   		":register": self.register, \
+  		":deregister": self.deregister, \
   		":registrar": self.registrar, \
+  		":end": self.end, \
+  		":heartbeat": self.heartbeat, \
   		":test": self.test, \
   		"!": self.exeModuleCmd \
 		}
@@ -37,13 +32,23 @@ class module(object):
 		#self.socketStream.bind("tcp://*:%s" % servers['zmqStreamPort'])
 	    	self.mySocketCmd = self.zmqcontext.socket(zmq.REP)
 	    	self.mySocketCmd.bind("tcp://*:%s" % self.myCmdPort)
+		if hubport:	    
+			print name," sending CMDs to:",hubport
+			self.hasParent=True
+			self.hubCmdPort=hubport
+		    	self.socketHUBCmd = self.zmqcontext.socket(zmq.REQ)
+		    	self.socketHUBCmd.connect("tcp://localhost:%s" % self.hubCmdPort)
+		else:
+			self.hasParent=False
+		#self.moduleheartbeat()
 		self.zmqQueue()
+
 
 	def addCMDs(self,CMDs):
 		self.CMDs.update(CMDs)
 
 
-	#this thread is responsible for all the 
+	#this thread is do all the 
 	#CMD from other modules
 	@threaded
 	def zmqQueue(self):
@@ -62,10 +67,31 @@ class module(object):
 		#  Send reply back to client
     		self.mySocketCmd.send(str(reply))
 
+	#engine heartbeat part
+	def heartbeat(self,arg):
+		module=arg.strip()
+		print "HeartBeat from engine. Module:",module
+		return True
+
+	#module heartbeat part
+	@threaded
+	def moduleheartbeat(self):
+	    time.sleep(1)
+	    while self.RUN:
+		for module in self.modules.keys():
+			cmd=str(':heartbeat '+module)
+			self.modules[module]['CMDsocket'].send(cmd)
+			time.sleep(1)
+			reply=self.modules[module]['CMDsocket'].recv()
+			if reply:
+				print module,"is alive"
+			else:
+				print module,"is death"		
+
 	def registrar(self,arg):
 		r=json.loads(arg)
 		module=r['module']
-		self.modules.pop(module,None)
+		self.deregister(module)
 		self.modules[module]={'name':r['module'],'port':r['port']}
 		socketCmd = self.zmqcontext.socket(zmq.REQ)
 		socketCmd.connect ("tcp://localhost:%s" % r['port'])
@@ -74,8 +100,6 @@ class module(object):
 		#print self.modules[module]
 		print module," sucesfully registed"
 		return json.dumps({'OK':True})
-
-
 
 
 	def listModules(self):
@@ -108,6 +132,15 @@ class module(object):
 			print self.modulename," CMD PORT:",self.myCmdPort
 			print self.modulename," CMDs:",modulecmd
 
+	def deregister(self,arg):
+		module=arg.strip()
+		try:
+			self.modules[module]['CMDsocket'].close()
+			self.modules.pop(module,None)
+		except:	
+			"Fail closing CMD to socket",module
+		print "DEREGISTRING: ",module
+	
 		
 	def cmd(self,cmd):
                 for c in self.CMDs.keys():
@@ -134,8 +167,19 @@ class module(object):
 	  	while self.RUN:
 			time.sleep(1)
 
-	def end(self):
-	  	self.RUN=False
+	def end(self,arg=''):
+		for module in self.modules.keys():
+			print "ASKEND to end;",module
+			cmd=str(':end')
+			self.modules[module]['CMDsocket'].send(cmd)
+			reply=self.modules[module]['CMDsocket'].recv()
+		if self.hasParent:
+			cmd=str(':deregister '+self.modulename)
+			self.socketHUBCmd.send(cmd)
+			reply=self.socketHUBCmd.recv()
+		self.zmqcontext.term()
+		self.RUN=False
+
 
 
 class engine(module):
@@ -156,17 +200,14 @@ class trackermodule(module):
 
 if __name__ == '__main__':
 	port=7770
-	trackerport=7771
+
   	e=engine('engine',port)
-  	m=trackermodule('tracker',trackerport,port)
-	e.listModules()
-	print e.cmd('!tracker :info')
+
 	try:
-		m.run()
-	except:
-		m.end()
+		e.run()
+	finally:
 		e.end()
-		e.zmqcontext.term()
+
 
 
 

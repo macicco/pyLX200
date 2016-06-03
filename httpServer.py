@@ -1,63 +1,55 @@
 #!/usr/bin/python
 from flask import Flask, render_template, request, jsonify
+from flask.ext.classy import FlaskView
 from functools import wraps, update_wrapper
 import zmq
 import time
+import moduleSkull
 from config import *
 
+class httpmodule(moduleSkull.module):
+	def __init__(self):
+		port=servers['zmqhttpCmdPort']
+		hubport=servers['zmqEngineCmdPort']
+		super(httpmodule,self).__init__('httpview',port,hubport)
+		CMDs={ 
+		}
+		self.register()
+
+
+class httpview(FlaskView):
+	def __init__(self):
+		super(httpview,self).__init__()
+		self.module=httpmodule()
+
+	def _index():
+	    return render_template('arrow.html', camera='')
+
+	def _help():
+	    return render_template('help.html')
+
+	def _value():
+		self.modulesocketHUBCmd.send('@values')
+		reply=self.module.socketHUBCmd.recv()
+		topic,msg=demogrify(reply)
+		#print topic,msg
+		return jsonify(msg)
+
+	def getObserver():
+		self.module.send('@getObserver')
+		reply=self.module.recv()
+		return reply
+
+	def getGear():
+		self.module.send('@getGear')
+		reply=self.module.recv()
+		return reply
+
+	def getConfig():
+		return jsonify(Config)
+
 app = Flask(__name__)
-last={}
-
-@app.route('/')
-def index():
-    return render_template('arrow.html', camera='')
-
-@app.route('/help')
-def help():
-    return render_template('help.html')
-
-@app.route('/values.json')
-def gps_json():
-	return jsonify(lastValue())
-
-@app.route('/getObserver')
-def getObserver():
-	socketCmd.send('@getObserver')
-	reply=socketCmd.recv()
-	return reply
-
-@app.route('/getGear')
-def getGear():
-	socketCmd.send('@getGear')
-	reply=socketCmd.recv()
-	return reply
-
-@app.route('/getConfig')
-def getConfig():
-	return jsonify(Config)
-
-def lastValue():
-	global last
-	try:
-		m= socketStream.recv(flags=zmq.NOBLOCK)
-		topic, msg  = demogrify(m)
-		last=msg
-	except:
-		msg=last
-    	return msg
+httpview.register(app)
 
 if __name__ == '__main__':
-	context = zmq.Context()
-	socketStream = context.socket(zmq.SUB)
-	#CONFLATE: get only one message (do not work with the stock version of zmq, works from ver 4.1.4)
-	socketStream.setsockopt(zmq.CONFLATE, 1)
-	socketStream.connect ("tcp://localhost:%s" % servers['zmqStreamPort'])
-	socketStream.setsockopt(zmq.SUBSCRIBE, 'values')
-
-	socketCmd = context.socket(zmq.REQ)
-	socketCmd.connect ("tcp://localhost:%s" % servers['zmqEngineCmdPort'])
-
-
-
-	#main loop
-	app.run(host='0.0.0.0',port=servers['httpPort'],debug=False)
+    app.run()
