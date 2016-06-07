@@ -9,7 +9,6 @@ import zmq
 import json
 from config import *
 
-
 class module(object):
 	def __init__(self,name,port,hubport=False):
 		print "Creating module ",name
@@ -52,6 +51,7 @@ class module(object):
 	#CMD from other modules
 	@threaded
 	def zmqQueue(self):
+
 	    while self.RUN:
 		try:
 	    		message = self.mySocketCmd.recv()

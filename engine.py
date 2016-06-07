@@ -11,6 +11,15 @@ import math
 import json
 from config import *
 import moduleSkull
+import signal
+
+def signal_handler(signal, frame):
+    print 'You pressed Ctrl+C!'
+    m.end()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
 
 class mainengine(moduleSkull.module):
 	def __init__(self):
