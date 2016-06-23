@@ -31,7 +31,7 @@ class stick(moduleSkull.module):
 	except pygame.error:
 		print 'no joystick found.'
 
-	while 1:
+	while self.RUN:
 	   for e in pygame.event.get(): # iterate over event stack
 	      if e.type == pygame.JOYAXISMOTION: # Read Analog Joystick Axis
         	 x1 , y1 = j.get_axis(0), j.get_axis(1) 

@@ -9,6 +9,10 @@ import zmq
 import json
 from config import *
 
+import signal
+
+
+
 class module(object):
 	def __init__(self,name,port,hubport=False):
 		print "Creating module ",name
@@ -39,9 +43,10 @@ class module(object):
 		    	self.socketHUBCmd.connect("tcp://localhost:%s" % self.hubCmdPort)
 		else:
 			self.hasParent=False
-		#self.moduleheartbeat()
-		self.zmqQueue()
-
+		#self.heartbeatThread = self.moduleheartbeat()
+		self.CMDThread=self.zmqQueue()
+		print self.CMDThread
+		signal.signal(signal.SIGINT, self.signal_handler)
 
 	def addCMDs(self,CMDs):
 		self.CMDs.update(CMDs)
@@ -51,14 +56,13 @@ class module(object):
 	#CMD from other modules
 	@threaded
 	def zmqQueue(self):
-
 	    while self.RUN:
 		try:
 	    		message = self.mySocketCmd.recv()
 		except:
-			print "Clossing ZMQ queue"
+			print "Clossing mySocketCmd ZMQ socket."
 			self.mySocketCmd.close()
-			return
+			break
 		#print("Received request: %s" % message)
 
 		#  Do some 'work'
@@ -66,6 +70,8 @@ class module(object):
 
 		#  Send reply back to client
     		self.mySocketCmd.send(str(reply))
+	    print "CMD LOOP END."
+	    return
 
 	#engine heartbeat part
 	def heartbeat(self,arg):
@@ -138,8 +144,9 @@ class module(object):
 			self.modules[module]['CMDsocket'].close()
 			self.modules.pop(module,None)
 		except:	
-			"Fail closing CMD to socket",module
-		print "DEREGISTRING: ",module
+			"Fail closing CMD socket",module
+		print "DEREGISTRING: "+module
+		return "DEREGISTRING: "+module
 	
 		
 	def cmd(self,cmd):
@@ -168,17 +175,43 @@ class module(object):
 			time.sleep(1)
 
 	def end(self,arg=''):
+
 		for module in self.modules.keys():
-			print "ASKEND to end;",module
+			print "ASK TO END:",module
 			cmd=str(':end')
 			self.modules[module]['CMDsocket'].send(cmd)
 			reply=self.modules[module]['CMDsocket'].recv()
+			print reply
+
 		if self.hasParent:
+		   try:
 			cmd=str(':deregister '+self.modulename)
 			self.socketHUBCmd.send(cmd)
 			reply=self.socketHUBCmd.recv()
-		self.zmqcontext.term()
+			print "...."+reply		
+		   except:
+			print "Parent module is not available"
+	           finally:
+			self.socketHUBCmd.close()
+
 		self.RUN=False
+		print "Deleting zmqcontext"
+		self.zmqcontext.destroy()
+
+		print "waiting CMDthread end"
+	        self.CMDThread.join()
+		print "CMDthread ended"
+
+		return self.modulename+" ***·E·N·D·E·D·***!"
+
+
+	def signal_handler(self,signal, frame):
+		print 'You pressed Ctrl+C!'
+		self.end()
+		exit()
+
+
+
 
 
 
@@ -202,11 +235,8 @@ if __name__ == '__main__':
 	port=7770
 
   	e=engine('engine',port)
-
-	try:
-		e.run()
-	finally:
-		e.end()
+	e.run()
+	exit()
 
 
 

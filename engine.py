@@ -11,14 +11,7 @@ import math
 import json
 from config import *
 import moduleSkull
-import signal
 
-def signal_handler(signal, frame):
-    print 'You pressed Ctrl+C!'
-    m.end()
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
 
 
 class mainengine(moduleSkull.module):
@@ -57,6 +50,7 @@ class mainengine(moduleSkull.module):
   		"@setTrackSpeed": self.setTrackSpeed, \
   		"@values": self.values 
 		}
+		self.m=ramps.mount()
 		self.valuesmsg ={}
 		self.addCMDs(CMDs)
 		self.observerInit()
@@ -73,7 +67,7 @@ class mainengine(moduleSkull.module):
 
 		self.pulseStep=ephem.degrees('00:00:01')
 		a=ephem.degrees('00:20:00')
-		self.m=ramps.mount()
+
 		vRA=-ephem.hours("00:00:01")
 		vDEC=ephem.degrees("00:00:00")
 		self.m.trackSpeed(vRA,vDEC)
@@ -139,7 +133,6 @@ class mainengine(moduleSkull.module):
 			if False:
 				if self.alt<=ephem.degrees('10:00:00'):
 					self.cmd_stopSlew('')
-		self.end()
 		print "MOTORS STOPPED"
 
 	def values(self,arg):
@@ -301,16 +294,13 @@ class mainengine(moduleSkull.module):
 	def cmd_slewRate(self,arg):
 		return 1
 
-
-
+	def end(self,arg=''):
+		self.m.end()
+		super(mainengine,self).end()
 
 if __name__ == '__main__':
   	m=mainengine()
-	#m.run()
-	try:
-		m.run()
-	except:
-		m.end()
+	m.run()
 
 
 

@@ -56,7 +56,9 @@ def demogrify(topicmsg):
 
 def threaded(fn):
     def wrapper(*args, **kwargs):
-        threading.Thread(target=fn, args=args, kwargs=kwargs).start()
+        t1=threading.Thread(target=fn, args=args, kwargs=kwargs)
+	t1.start()
+	return t1
     return wrapper
 
 def group(lst, n):

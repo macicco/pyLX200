@@ -111,6 +111,7 @@ class tracker(moduleSkull.module):
 			#self.trackSatellite('DEIMOS 2')	
 			#self.circle(0,0,ephem.degrees('0:30:00'),0.1)
 
+
 	def satPosition(self,sat):
 			observer=self.observer
 			s=self.TLEs.TLE(sat)
@@ -150,6 +151,7 @@ class tracker(moduleSkull.module):
 if __name__ == '__main__':
 	t=tracker()
 	t.run()
+	exit()
 	try:
 		t.run()
 	except:

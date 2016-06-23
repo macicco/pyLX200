@@ -7,11 +7,7 @@ import ephem
 
 
 
-#Decorator to run some functions in threads
-def threaded(fn):
-    def wrapper(*args, **kwargs):
-        threading.Thread(target=fn, args=args, kwargs=kwargs).start()
-    return wrapper
+
 
 #virtual class. It must be used to derive the actual driver class
 #which implemente the motor driver
@@ -97,6 +93,7 @@ class axis(object):
 			self.doSteps(steps)
 			self.T=now
 			time.sleep(self.timesleep)
+		print "rampsThread ended"
 
 	def tracktick(self):
 		steps=self.vtracking*self.timestep

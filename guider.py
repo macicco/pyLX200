@@ -27,9 +27,7 @@ if __name__ == '__main__':
 	port=7770
 	guiderport=7772
   	g=guidermodule('guider',guiderport,port)
-	try:
-		g.run()
-	except:
-		g.end()
-		g.zmqcontext.term()
+	g.run()
+	exit()
+
 

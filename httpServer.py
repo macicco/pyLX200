@@ -5,14 +5,7 @@ import zmq
 import time
 import moduleSkull
 from config import *
-import signal
 
-def signal_handler(signal, frame):
-    print 'You pressed Ctrl+C!'
-    module.end()
-    sys.exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
 
 class httpmodule(moduleSkull.module):
 	def __init__(self):
@@ -23,10 +16,21 @@ class httpmodule(moduleSkull.module):
 		}
 		self.register()
 
+	def end(self,arg=''):
+		#shutdown_server()
+		super(httpmodule,self).end()
+		exit(0)
 
 module=httpmodule()
 
 app = Flask(__name__)
+app.debug = False
+
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
 
 @app.route("/")
 def index():
