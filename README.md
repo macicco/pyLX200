@@ -22,4 +22,12 @@ The sequence of commands show:
 
 Nacho Mas - Abril 2016
 
+Installation
+------------
+Install all the software needed:
+
+./prerequisites.sh
+
+
+
 

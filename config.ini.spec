@@ -27,4 +27,5 @@ zmqEngineCmdPort = integer()
 zmqTrackerCmdPort = integer()
 zmqJoystickCmdPort = integer()
 zmqhttpCmdPort = integer()
+pigpio=string()
 

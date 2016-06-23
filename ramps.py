@@ -193,7 +193,7 @@ class AxisDriver(axis):
 		super(AxisDriver, self).__init__(name)
 		self.lock = threading.Lock()
 		import pigpio
-		self.pi=pigpio.pi('cronostamper')
+		self.pi=pigpio.pi(servers['pigpio'])
 		self.PIN=PIN
 		self.DIR_PIN=DIR_PIN
 		self.stepsPerRevolution=gear['motorStepsRevolution']*gear['microstep']*gear['reducer']
