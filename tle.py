@@ -53,7 +53,7 @@ if __name__=='__main__':
 
 	i=TLEhandler()
 	iss=i.TLE('ISS')
-	iss=i.TLE('METEOSAT 7')
+
 	iss.compute(here)
 	print iss.ra,iss.dec
 

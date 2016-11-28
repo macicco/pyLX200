@@ -20,6 +20,7 @@ class module(object):
 		print name," listen CMDs on:",port
 		self.zmqcontext = zmq.Context()
 		self.CMDs={ 
+  		":introspect": self.introspect, \
   		":register": self.register, \
   		":deregister": self.deregister, \
   		":registrar": self.registrar, \
@@ -111,6 +112,9 @@ class module(object):
 	def listModules(self):
 		for m in self.modules.keys():
 			print m
+
+	def introspect(self):
+		return self.modules.keys()
 
 	def exeModuleCmd(self,arg):
 		s=arg.split()
