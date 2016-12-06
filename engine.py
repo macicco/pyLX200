@@ -12,7 +12,8 @@ import json
 from config import *
 import moduleSkull
 
-
+#http://pizco.readthedocs.io/en/latest/
+import pizco
 
 class mainengine(moduleSkull.module):
 	def __init__(self):

@@ -231,6 +231,35 @@ class AxisDriver(axis):
 		print "Min step (point Error)",ephem.degrees(self.minMotorStep) \
 			,"Max speed: ",ephem.degrees(self._vmax)
 
+	def setMicrostepPIN(self,enablePIN,M0PIN,M1PIN,M2PIN):
+		print "Microstepping PINs:",enablePIN,M0PIN,M1PIN,M2PIN
+		self.setmicrostep(8)
+
+	def setmicrostep(self,nmicrosteps):
+		'''
+		M2 M1 M1
+		0  0  0 Full step (2-phase excitation) with 71% current
+		0  0  1 1/2 step (1-2 phase excitation)
+		0  1  0 1/4 step (W1-2 phase excitation)
+		0  1  1 8 microsteps/step
+		1  0  0 16 microsteps/step
+		1  0  1 32 microsteps/step
+		1  1  0 32 microsteps/step
+		1  1  1 32 microsteps/step
+		'''
+		lookup_table={
+		1:{'M2':0,'M1':0,'M0':0 },
+		2:{'M2':0,'M1':0,'M0':1 },
+		4:{'M2':0,'M1':1,'M0':0 },
+		8:{'M2':0,'M1':1,'M0':1 },
+		16:{'M2':1,'M1':0,'M0':0 },
+		32:{'M2':1,'M1':0,'M0':1 },
+		32:{'M2':1,'M1':1,'M0':0 },
+		32:{'M2':1,'M1':1,'M0':1 }
+		}
+		self.microstepping=lookup_table[nmicrosteps]
+		print nmicrosteps,self.microstepping['M2'],self.microstepping['M1'],self.microstepping['M0']
+		pass
 
 
 	def doSteps(self,delta):
@@ -340,8 +369,31 @@ class mount:
 			self.axis1=axis('RA')
 			self.axis2=axis('DEC')
 		else:
-			self.axis1=AxisDriver('RA',12,4)
-			self.axis2=AxisDriver('DEC',13,5)
+			''' RASPBERRY B+ PWM PINOUT
+			12  PWM channel 0  All models but A and B
+			13  PWM channel 1  All models but A and B
+			18  PWM channel 0  All models
+			19  PWM channel 1  All models but A and B
+			CHOSE DIFERENT CHANNELS FOR RA AND DEC !!
+			'''
+			RA_STEP_PIN=13
+			RA_DIR_PIN=5
+			RA_ENABLE_PIN=21
+			RA_M0_PIN=20
+			RA_M1_PIN=19
+			RA_M2_PIN=16
+
+			DEC_STEP_PIN=18
+			DEC_DIR_PIN=22
+			DEC_ENABLE_PIN=8
+			DEC_M0_PIN=11
+			DEC_M1_PIN=9
+			DEC_M2_PIN=10
+
+			self.axis1=AxisDriver('RA',RA_STEP_PIN,RA_DIR_PIN)
+			self.axis1.setMicrostepPIN(RA_ENABLE_PIN,RA_M0_PIN,RA_M1_PIN,RA_M2_PIN)
+			self.axis2=AxisDriver('DEC',DEC_STEP_PIN,DEC_DIR_PIN)
+			self.axis2.setMicrostepPIN(DEC_ENABLE_PIN,DEC_M0_PIN,DEC_M1_PIN,DEC_M2_PIN)
 
 
 		self.run()
