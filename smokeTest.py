@@ -92,7 +92,7 @@ def costellations():
 		    	#sock.sendall(':Q#')
 			sock.send(':MS#')
 			data = recv()
-	    		time.sleep(5)	
+	    		time.sleep(10)	
 
 		finally:
 			print >>sys.stderr, 'closing socket'

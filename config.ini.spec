@@ -7,7 +7,7 @@ reducer = float()
 
 
 [engine]
-maxPPS = integer(max=2048)
+maxPPSbase = integer(max=20480)
 acceleration = string()
 overhorizon = boolean()
 go2rising = boolean()

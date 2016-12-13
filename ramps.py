@@ -201,7 +201,7 @@ class AxisDriver(axis):
 		self.plate=gear['pinion']
 		self.FullTurnSteps=self.plate*self.stepsPerRevolution/self.corona
 		self.stepsRest=0
-		self.maxPPS=engine['maxPPS']
+		self.maxPPS=engine['maxPPSbase']*gear['microstep']
 		self.pulseWidth=1./float(self.maxPPS)
 		self.timestepMax=self.pulseWidth*10
 		self.timestepMin=self.pulseWidth*5
@@ -365,6 +365,8 @@ class AxisDriver(axis):
 class mount:
 	def __init__(self):
 		simulation=False
+		import pigpio
+		pi=pigpio.pi(servers['pigpio'])
 		if simulation:
 			self.axis1=axis('RA')
 			self.axis2=axis('DEC')
@@ -375,25 +377,74 @@ class mount:
 			18  PWM channel 0  All models
 			19  PWM channel 1  All models but A and B
 			CHOSE DIFERENT CHANNELS FOR RA AND DEC !!
+
+			M2 M1 M0
+			0  0  0 Full step (2-phase excitation) with 71% current
+			0  0  1 1/2 step (1-2 phase excitation)
+			0  1  0 1/4 step (W1-2 phase excitation)
+			0  1  1 8 microsteps/step
+			1  0  0 16 microsteps/step
+			1  0  1 32 microsteps/step
+			1  1  0 32 microsteps/step
+			1  1  1 32 microsteps/step
+
+			RESET=HIGH DEVICE ENABLE
+			SLEEP=HIGH DEVICE ENABLE
+			ENABLE=LOW DEVICE ENABLE
 			'''
 			RA_STEP_PIN=13
 			RA_DIR_PIN=5
 			RA_ENABLE_PIN=21
+			RA_RESET_PIN=12
+			RA_SLEEP_PIN=6
 			RA_M0_PIN=20
 			RA_M1_PIN=19
 			RA_M2_PIN=16
+		
 
 			DEC_STEP_PIN=18
 			DEC_DIR_PIN=22
 			DEC_ENABLE_PIN=8
+			DEC_RESET_PIN=25
+			DEC_SLEEP_PIN=24
 			DEC_M0_PIN=11
 			DEC_M1_PIN=9
 			DEC_M2_PIN=10
 
 			self.axis1=AxisDriver('RA',RA_STEP_PIN,RA_DIR_PIN)
 			self.axis1.setMicrostepPIN(RA_ENABLE_PIN,RA_M0_PIN,RA_M1_PIN,RA_M2_PIN)
+
+			pi.set_mode(RA_M2_PIN, pigpio.OUTPUT)
+			pi.set_mode(RA_M1_PIN, pigpio.OUTPUT)
+			pi.set_mode(RA_M0_PIN, pigpio.OUTPUT)
+			pi.write(RA_M2_PIN, False)
+			pi.write(RA_M1_PIN, True)
+			pi.write(RA_M0_PIN,True)
+
+			pi.set_mode(RA_RESET_PIN, pigpio.OUTPUT)
+			pi.set_mode(RA_SLEEP_PIN, pigpio.OUTPUT)
+			pi.set_mode(RA_ENABLE_PIN, pigpio.OUTPUT)
+			pi.write(RA_RESET_PIN, True)
+			pi.write(RA_SLEEP_PIN, True)
+			pi.write(RA_ENABLE_PIN,False)
+
 			self.axis2=AxisDriver('DEC',DEC_STEP_PIN,DEC_DIR_PIN)
 			self.axis2.setMicrostepPIN(DEC_ENABLE_PIN,DEC_M0_PIN,DEC_M1_PIN,DEC_M2_PIN)
+
+			pi.set_mode(DEC_M2_PIN, pigpio.OUTPUT)
+			pi.set_mode(DEC_M1_PIN, pigpio.OUTPUT)
+			pi.set_mode(DEC_M0_PIN, pigpio.OUTPUT)
+			pi.write(DEC_M2_PIN, False)
+			pi.write(DEC_M1_PIN, True)
+			pi.write(DEC_M0_PIN,True)
+
+
+			pi.set_mode(DEC_RESET_PIN, pigpio.OUTPUT)
+			pi.set_mode(DEC_SLEEP_PIN, pigpio.OUTPUT)
+			pi.set_mode(DEC_ENABLE_PIN, pigpio.OUTPUT)
+			pi.write(DEC_RESET_PIN,True)
+			pi.write(DEC_SLEEP_PIN,True)
+			pi.write(DEC_ENABLE_PIN,False)
 
 
 		self.run()
