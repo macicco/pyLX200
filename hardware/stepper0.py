@@ -30,7 +30,7 @@ how many steppers are in the engine at programing time.
 * 
 '''
 
-TIMESLOT=100000
+TIMESLOT=10000
 raspberry='192.168.1.11'
 
 class engine(object):
@@ -65,7 +65,20 @@ class engine(object):
 		self._sendWave()
 
 	def _sendWave(self):
-		while ra.pi.wave_tx_busy(): 
+
+		wid = self.pi.wave_create() 
+		self.pi.wave_send_using_mode(wid, pigpio.WAVE_MODE_ONE_SHOT_SYNC)
+
+		if self.old_wid !=-9999:
+			while self.pi.wave_tx_at()==self.old_wid:
+				time.sleep(0.1*TIMESLOT/1000000.)
+			self.pi.wave_delete(self.old_wid)
+		
+		print self.old_wid,wid
+		self.old_wid=wid
+
+	def _sendWave_(self):
+		while self.pi.wave_tx_busy(): 
 			time.sleep(0.0001)
 
 		wid = self.pi.wave_create() 
@@ -73,7 +86,8 @@ class engine(object):
 
 		if self.old_wid !=-9999:
 			self.pi.wave_delete(self.old_wid)
-
+		
+		print self.old_wid,wid
 		self.old_wid=wid
 
 	def _areSyncronized(self):
@@ -224,11 +238,7 @@ class stepper(object):
 		if abs(delta)<steps:
 			pass
 			#print "Delta",self.name,steps,delta,self.betaTarget,self.beta
-			steps=int(abs(delta))
-
-
-
-
+			steps=int(abs(delta))	
 
 
 		for i in range(steps):
@@ -265,8 +275,20 @@ if __name__ == '__main__':
 	dec.auxPINs(25,24,11,9,10,)
 	e.addStepper(ra)
 	e.addStepper(dec)
-	e.rpm((300,300))
+	e.rpm((250,250))
+	while True:
+		for v in range(20,240,20):
+			e.rpm((v,v))
+			e.rotate((180,180))
+			e.rotate((0,0))
+	
+		for v in range(240,20,-20):
+			e.rpm((v,v))
+			e.rotate((180,180))
+			e.rotate((0,0))
+
 	d=1
+		
 	while True:
 		q0=int(200*16*360/(360.))
 		q1=int(48*16*5/(360.))
